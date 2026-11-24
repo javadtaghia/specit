@@ -11,6 +11,7 @@ from .model import (
 )
 from .prompts import load
 from .sources import pack_chunks, index_sources
+from .storage import normalize_prefix, workflow_id_for
 from .diagrams import extract_mermaid_blocks, validate_mermaid_syntax
 import json
 import re
@@ -98,11 +99,12 @@ def _merge_process_into(target, incoming):
             existing_stmts.add(r.statement.strip().lower())
 
 
-def extract_catalogue(llm, sources, feedback: str = '', prior=None) -> Catalogue:
+def extract_catalogue(llm, sources, feedback: str = '', prior=None, prefix: str = 'PRJ') -> Catalogue:
     parts = list(pack_chunks(sources))
     if not parts:
         raise ValueError('No readable text in input documents. Scanned PDFs require OCR outside this starter.')
 
+    px = normalize_prefix(prefix)
     merged = []
     summaries = []
     running_context = _compact_catalogue_summary(prior) if prior else {'processes': []}
@@ -111,9 +113,11 @@ def extract_catalogue(llm, sources, feedback: str = '', prior=None) -> Catalogue
         prompt = (
             f'Source segment {idx}/{len(parts)}. Extract only what is supported by this segment. '
             f'Up to {MAX_PROCESSES_PER_PASS} processes. '
+            f'STRICT ID CONVENTION: Every process ID MUST use the single project catalogue prefix `{px}-CA-001`, `{px}-CA-002`, `{px}-CA-003`, etc. '
+            'Do NOT invent category abbreviations like LO, MO, EQ, RPT, MEM, OVD, etc. '
+            f'Rule IDs MUST use `{px}-CA-001-R1`, `{px}-CA-001-R2`, etc. '
             'IMPORTANT: If a process in this segment continues or elaborates a process already listed in '
             'EXISTING PROCESSES SO FAR, reuse its EXACT id and name so they merge cleanly. '
-            'For genuinely new processes, assign a UNIQUE id not already used in EXISTING PROCESSES SO FAR. '
             'For evidence.locator, use ONLY the locator value from `locator=...` (e.g. `page 2`, `block 5`), without repeating the filename. '
             'Also capture systems/responsibilities, glossary abbreviations, non-functional requirements (nfrs), '
             'exclusions (out-of-scope items), shared_actors, and open_questions when present in this segment.\n\n'
@@ -144,12 +148,12 @@ def extract_catalogue(llm, sources, feedback: str = '', prior=None) -> Catalogue
         else:
             _merge_process_into(seen[key], p)
 
-    # Guarantee unique process IDs across all distinct processes
-    used_ids: set[str] = set()
+    # Deterministically enforce uniform `{PREFIX}-CA-001`, `{PREFIX}-CA-002`, ... IDs (no arbitrary LO/MO/RPT prefixes)
     final_processes = []
-    for p in seen.values():
-        p.id = _next_unique_id(p.id, used_ids)
-        used_ids.add(p.id)
+    for idx, p in enumerate(seen.values(), 1):
+        p.id = f'{px}-CA-{idx:03d}'
+        for r_idx, rule in enumerate(p.rules, 1):
+            rule.id = f'{p.id}-R{r_idx}'
         final_processes.append(p)
 
     first = summaries[0]
@@ -179,13 +183,17 @@ def extract_catalogue(llm, sources, feedback: str = '', prior=None) -> Catalogue
     )
 
 
-def generate_artifact(llm, catalogue: Catalogue, process_id: str, feedback: str = '', previous=None) -> Artifact:
+def generate_artifact(llm, catalogue: Catalogue, process_id: str, feedback: str = '', previous=None, prefix: str = 'PRJ') -> Artifact:
     p = next((x for x in catalogue.processes if x.id == process_id), None)
     if not p:
         raise KeyError(process_id)
+    px = normalize_prefix(prefix)
+    wf_id = workflow_id_for(process_id, px)
     cat_summary = _compact_catalogue_summary(catalogue.model_dump())
     prev_compact = _compact_artifacts_bundle({process_id: previous}, max_field_chars=5000).get(process_id, {}) if previous else {}
     prompt = (
+        f'ID CONVENTION: Label this workflow `{wf_id}` traced back to catalogue item `{process_id}`. '
+        'Do NOT invent unfamiliar acronyms or extra prefix codes.\n\n'
         f'CATALOGUE CONTEXT:\n{_json(cat_summary)}\n\n'
         f'TARGET PROCESS (FULL):\n{_json(p.model_dump())}\n\n'
         f'PREVIOUS ARTIFACT (optional):\n{_json(prev_compact)}\n\n'
@@ -270,9 +278,12 @@ def foundation(llm, catalogue: Catalogue, artifacts: dict, feedback: str = '') -
     return llm.ask(load('system'), load('foundation') + '\n' + payload, Foundation)
 
 
-def planning(llm, catalogue: Catalogue, foundation_data: dict, tech_preferences: str = '') -> Planning:
+def planning(llm, catalogue: Catalogue, foundation_data: dict, tech_preferences: str = '', prefix: str = 'PRJ') -> Planning:
+    px = normalize_prefix(prefix)
     payload = (
         f'PROJECT:\n{catalogue.project_name}\n\n'
+        f'STRICT TASK ID CONVENTION: Number every task `{px}-SC-001`, `{px}-SC-002`, `{px}-SC-003`, etc. '
+        f'(tracing back to `{px}-CA-...` and `{px}-WF-...`). Do NOT invent unfamiliar acronyms.\n\n'
         f'CATALOGUE OVERVIEW:\n{_json(_compact_catalogue_summary(catalogue.model_dump()))}\n\n'
         f'FOUNDATION:\n{_json(foundation_data)}\n\n'
         f'TECH PREFERENCES:\n{tech_preferences}'

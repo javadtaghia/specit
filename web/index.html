@@ -34,20 +34,20 @@
         <span class="wnum">2</span><span class="wlbl">Catalogue</span><span class="wbadge" id="badge-step-2"></span>
       </button>
       <span class="warrow">›</span>
-      <button class="wstep" data-step="3" title="3. Open Canvas: Flows, Word Docs & Draw.io Diagrams">
-        <span class="wnum">3</span><span class="wlbl">Canvas Studio</span><span class="wbadge" id="badge-step-3"></span>
+      <button class="wstep" data-step="3" title="3. Work Flows (WF): Flows Map, Word View & Diagram Editor">
+        <span class="wnum">3</span><span class="wlbl">Work Flows</span><span class="wbadge" id="badge-step-3"></span>
       </button>
       <span class="warrow">›</span>
       <button class="wstep" data-step="4" title="4. Review, compare, assess quality & feedback loop">
         <span class="wnum">4</span><span class="wlbl">Quality</span><span class="wbadge" id="badge-step-4"></span>
       </button>
       <span class="warrow">›</span>
-      <button class="wstep" data-step="5" title="5. Spec Kit foundation: Constitution, Spec, Clarification">
+      <button class="wstep" data-step="5" title="5. Foundation: Constitution, Specification & Clarification">
         <span class="wnum">5</span><span class="wlbl">Foundation</span><span class="wbadge" id="badge-step-5"></span>
       </button>
       <span class="warrow">›</span>
-      <button class="wstep" data-step="6" title="6. Plan, tasks, exports & code proposals">
-        <span class="wnum">6</span><span class="wlbl">Plan &amp; Code</span><span class="wbadge" id="badge-step-6"></span>
+      <button class="wstep" data-step="6" title="6. SC — Plan, Tasks & Code Proposals">
+        <span class="wnum">6</span><span class="wlbl">SC</span><span class="wbadge" id="badge-step-6"></span>
       </button>
     </nav>
 
@@ -91,6 +91,16 @@
 
         <div class="upload-center">
           <div class="card flex-col" style="gap: 12px;">
+            <div class="row-between" style="background:var(--surface-alt); padding:10px 12px; border:1px solid var(--border); border-radius:8px;">
+              <div>
+                <strong>Project Prefix</strong>
+                <div class="muted" id="prefix-preview-step1">IDs: PRJ-CA-001 (Catalogue) · PRJ-WF-001 (Work Flows) · PRJ-SC-001 (SC)</div>
+              </div>
+              <div class="row-actions">
+                <input id="prefix-input-step1" type="text" value="PRJ" maxlength="10" style="width:96px; text-transform:uppercase; font-weight:700;" />
+                <button id="btn-save-prefix-step1" class="btn btn-xs btn-secondary">Apply Prefix</button>
+              </div>
+            </div>
             <div id="dropzone" class="dropzone">
               <input id="file-input" type="file" multiple accept=".docx,.pdf,.md,.txt" />
               <div class="dropzone-icon">📁</div>
@@ -120,13 +130,15 @@
           <span id="cat-metrics-inline" class="muted"></span>
         </div>
         <div class="row-actions">
+          <input id="prefix-input-step2" type="text" value="PRJ" maxlength="10" style="width:76px; text-transform:uppercase; font-weight:700; padding:4px 7px; font-size:12px;" title="Project prefix (e.g. PRJ -> PRJ-CA-001)" />
+          <button id="btn-save-prefix-step2" class="btn btn-xs" title="Apply this prefix to all catalogue items, workflows, and diagrams">Apply Prefix</button>
           <button id="btn-cat-comments" class="btn btn-xs" title="Add review comments & run AI review/rerun on this process">💬 Comments</button>
           <input id="cat-save-note" type="text" class="inline-note" placeholder="Change note..." />
           <button id="btn-save-catalogue" class="btn btn-xs">💾 Save</button>
           <span id="cat-approval-badge" class="status-pill pill-warn">Not Approved</span>
           <button id="btn-approve-cat" class="btn btn-xs btn-success">✓ Approve</button>
           <button id="btn-revoke-cat" class="btn btn-xs btn-danger-outline hidden">Revoke</button>
-          <button class="btn btn-xs btn-primary" onclick="goStep(3)">Open Canvas Studio →</button>
+          <button class="btn btn-xs btn-primary" onclick="goStep(3)">Work Flows →</button>
         </div>
       </div>
 
@@ -366,7 +378,7 @@
           <textarea id="qa-feedback" rows="3" placeholder="Enter corrections to apply across selected workflows or restart extraction..."></textarea>
           <div class="row-actions" style="margin-top:8px;">
             <button id="btn-restart-extract" class="btn btn-sm btn-secondary">↺ Restart from Extraction with Feedback</button>
-            <button class="btn btn-sm" onclick="goStep(3)">← Back to Canvas Studio</button>
+            <button class="btn btn-sm" onclick="goStep(3)">← Back to Work Flows</button>
           </div>
         </div>
 
@@ -448,15 +460,15 @@
       </div>
     </section>
 
-    <!-- ==================== STEP 6: PLAN & IMPLEMENT ==================== -->
+    <!-- ==================== STEP 6: SC — PLAN & CODE ==================== -->
     <section id="step-6" class="step-panel full-panel">
       <div class="studio-bar">
         <div class="row-actions">
-          <strong>6. Plan &amp; Implement</strong>
+          <strong>6. SC — Plan &amp; Code</strong>
           <div class="seg-group">
-            <button class="seg-btn active" data-planmode="plan_md">Technical Plan</button>
-            <button class="seg-btn" data-planmode="tasks_md">Ordered Tasks</button>
-            <button class="seg-btn" data-planmode="code">⚙ Code Proposals</button>
+            <button class="seg-btn active" data-planmode="plan_md">Plan</button>
+            <button class="seg-btn" data-planmode="tasks_md">Tasks (SC)</button>
+            <button class="seg-btn" data-planmode="code">⚙ Code</button>
           </div>
           <div class="seg-group" id="plan-view-toggle">
             <button class="seg-btn active" data-pview="word">📄 Word View</button>
@@ -470,13 +482,13 @@
           <button id="btn-save-plan" class="btn btn-xs">💾 Save</button>
           <span id="plan-approval-badge" class="status-pill pill-warn">Not Approved</span>
           <button id="btn-approve-plan" class="btn btn-xs btn-success">✓ Approve</button>
-          <button id="btn-export-speckit" class="btn btn-xs btn-secondary">📦 Spec Kit .zip</button>
-          <button id="btn-export-full-docx-2" class="btn btn-xs btn-word">📄 Full SAD .docx</button>
+          <button id="btn-export-speckit" class="btn btn-xs btn-secondary">📦 Export SC .zip</button>
+          <button id="btn-export-full-docx-2" class="btn btn-xs btn-word">📄 Full .docx</button>
         </div>
       </div>
 
       <div class="regen-bar" id="tech-pref-bar">
-        <input id="tech-preferences" type="text" placeholder="Preferred tech stack & constraints (e.g. C#/.NET 8 modular monolith, PostgreSQL, React + TypeScript, on-premise)..." />
+        <input id="tech-preferences" type="text" placeholder="Preferred technology stack & constraints (e.g. C#/.NET 8, PostgreSQL, React + TypeScript, on-premise)..." />
         <button id="btn-download-plan-docx" class="btn btn-xs btn-word">Export Active .docx</button>
       </div>
 
@@ -492,7 +504,7 @@
         </div>
         <div id="plan-code-stage" class="full-h flex-col full-pad hidden">
           <div class="row-actions" style="margin-bottom:10px;">
-            <input id="code-task-input" type="text" style="flex:1;" placeholder="Task ID or vertical slice (e.g. TASK-001: Implement EquipmentItem & Reservation domain entities with unit tests)" />
+            <input id="code-task-input" type="text" style="flex:1;" placeholder="Task ID or slice (e.g. PRJ-SC-001: Implement core domain entity with unit tests)" />
             <button id="btn-gen-code" class="btn btn-primary btn-sm">⚙ Generate Code Proposal</button>
           </div>
           <div id="code-proposal-viewer" class="flex-col flex-1 hidden" style="min-height:0;">

@@ -86,11 +86,11 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(len(merged.processes), 1)
         self.assertEqual(len(merged.processes[0].rules), 2)
 
-        # Colliding IDs across differently named processes get auto-disambiguated
+        # Colliding IDs across differently named processes get normalized to uniform PREFIX-CA-NNN
         d1 = Catalogue(project_name='CLEP', processes=[Process(id='RPT-001', name='Overdue report')])
         d2 = Catalogue(project_name='CLEP', processes=[Process(id='RPT-001', name='Active equipment export')])
-        merged2 = extract_catalogue(FakeLLM([d1, d2]), [src1, src2])
-        self.assertEqual([p.id for p in merged2.processes], ['RPT-001', 'RPT-002'])
+        merged2 = extract_catalogue(FakeLLM([d1, d2]), [src1, src2], prefix='PRJ')
+        self.assertEqual([p.id for p in merged2.processes], ['PRJ-CA-001', 'PRJ-CA-002'])
 
     def test_models_and_citation_checks(self):
         src = parse_source('doc.md', b'Member submits reservation')
@@ -225,10 +225,17 @@ class EngineTests(unittest.TestCase):
                 self.assertEqual(r_img_doc.status_code, 200)
                 self.assertTrue(r_img_doc.content[:2] == b'PK')
 
+                # Set custom project prefix & verify ZIP export naming: {PREFIX}-SPECIT-YYYYMMDD-HHMMSS.zip
+                px_res = client.put('/api/projects/clep-demo/prefix', json={'prefix': 'PPRJ', 'renumber_existing': True})
+                self.assertEqual(px_res.status_code, 200)
+                self.assertEqual(px_res.json()['prefix'], 'PPRJ')
+
                 # Full project ZIP export & re-import round-trip
                 zres = client.get('/api/projects/clep-demo/export/zip')
                 self.assertEqual(zres.status_code, 200)
                 self.assertTrue(zres.content[:2] == b'PK')
+                cd = zres.headers.get('content-disposition', '')
+                self.assertRegex(cd, r'PPRJ-SPECIT-\d{8}-\d{6}\.zip')
                 imp = client.post('/api/projects/import-zip', files={'file': ('clep-demo-project.zip', zres.content, 'application/zip')})
                 self.assertEqual(imp.status_code, 200)
                 loaded_slug = imp.json()['project_slug']

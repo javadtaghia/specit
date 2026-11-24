@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -35,7 +36,7 @@ from engine.pipeline import (
     _compact_catalogue_summary,
 )
 from engine.sources import parse_source
-from engine.storage import Store
+from engine.storage import Store, workflow_id_for
 
 BASE_DIR = Path(__file__).resolve().parent
 WEB_DIR = BASE_DIR / 'web'
@@ -135,6 +136,11 @@ class GitCommitRequest(BaseModel):
 
 class GitPullRequest(BaseModel):
     branch: str | None = None
+
+
+class PrefixRequest(BaseModel):
+    prefix: str
+    renumber_existing: bool = True
 
 
 class FoundationRequest(BaseModel):
@@ -317,6 +323,7 @@ def get_project_state(project_name: str):
 
     return {
         'project_slug': project.name,
+        'prefix': store.get_prefix(project),
         'workspace_path': str(project),
         'sources': sources,
         'catalogue': catalogue,
@@ -401,6 +408,12 @@ def get_asset(project_name: str, filename: str):
     return FileResponse(str(path))
 
 
+@app.put('/api/projects/{project_name}/prefix')
+def update_project_prefix(project_name: str, req: PrefixRequest):
+    project = store.project(project_name)
+    return store.set_prefix(project, req.prefix, renumber_existing=req.renumber_existing)
+
+
 @app.post('/api/projects/{project_name}/extract')
 def run_extraction(project_name: str, req: ExtractRequest):
     project = store.project(project_name)
@@ -408,8 +421,9 @@ def run_extraction(project_name: str, req: ExtractRequest):
     if not sources:
         raise HTTPException(status_code=400, detail='Upload at least one readable source document first.')
     old = store.read(project, 'catalogue')
+    prefix = store.get_prefix(project)
     try:
-        out = extract_catalogue(_make_llm(req.llm), sources, req.feedback, old)
+        out = extract_catalogue(_make_llm(req.llm), sources, req.feedback, old, prefix=prefix)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'{type(e).__name__}: {e}')
     store.write(project, 'catalogue', out.model_dump(), 'extraction' + (f': {req.feedback[:60]}' if req.feedback else ''))
@@ -453,8 +467,9 @@ def generate_process_artifact(project_name: str, req: GenerateArtifactRequest):
     cat = Catalogue.model_validate(cat_data)
     artkey = f'artifact_{req.process_id}'
     prior = store.read(project, artkey)
+    prefix = store.get_prefix(project)
     try:
-        result = generate_artifact(_make_llm(req.llm), cat, req.process_id, req.feedback, prior)
+        result = generate_artifact(_make_llm(req.llm), cat, req.process_id, req.feedback, prior, prefix=prefix)
     except Exception as e:
         logger.exception('Artifact generation failed for %s (%s/%s): %s', req.process_id, req.llm.provider, req.llm.model, e)
         raise HTTPException(status_code=500, detail=f'{type(e).__name__}: {e}')
@@ -790,8 +805,9 @@ def generate_planning(project_name: str, req: PlanningRequest):
         raise HTTPException(status_code=400, detail='Approve Spec Kit foundation in Step 5 first.')
     cat = Catalogue.model_validate(store.read(project, 'catalogue'))
     found = store.read(project, 'foundation')
+    prefix = store.get_prefix(project)
     try:
-        result = planning(_make_llm(req.llm), cat, found, req.tech_preferences)
+        result = planning(_make_llm(req.llm), cat, found, req.tech_preferences, prefix=prefix)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'{type(e).__name__}: {e}')
     store.write(project, 'planning', result.model_dump(), 'Spec Kit phase 2 planning')
@@ -895,10 +911,12 @@ def export_full_docx(project_name: str):
     found = store.read(project, 'foundation')
     plan = store.read(project, 'planning')
     out = export_project_docx(project, catalogue=catalogue, artifacts=artifacts, foundation=found, planning=plan)
+    px = store.get_prefix(project)
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     return FileResponse(
         str(out),
         media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        filename=out.name,
+        filename=f'{px}-SPECIT-{stamp}.docx',
     )
 
 
@@ -906,10 +924,12 @@ def export_full_docx(project_name: str):
 def export_full_project_zip(project_name: str):
     project = store.project(project_name)
     data = export_project_zip_bytes(project)
+    px = store.get_prefix(project)
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
     return Response(
         content=data,
         media_type='application/zip',
-        headers={'Content-Disposition': f'attachment; filename="{project.name}-project.zip"'},
+        headers={'Content-Disposition': f'attachment; filename="{px}-SPECIT-{stamp}.zip"'},
     )
 
 
@@ -939,7 +959,9 @@ def export_speckit_zip(project_name: str):
     artifacts = _all_artifacts(project, catalogue)
     plan = store.read(project, 'planning')
     out = export_speckit(project, found, planning=plan, catalogue=catalogue, artifacts=artifacts)
-    return FileResponse(str(out), media_type='application/zip', filename=out.name)
+    px = store.get_prefix(project)
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    return FileResponse(str(out), media_type='application/zip', filename=f'{px}-SPECIT-SC-{stamp}.zip')
 
 
 @app.get('/api/projects/{project_name}/git/status')

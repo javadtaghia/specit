@@ -405,6 +405,46 @@ function syncSettingsUIForProvider(providerId, resetDefaults = true) {
   }
 }
 
+function currentPrefix() {
+  return (state.data && state.data.prefix) || 'PRJ';
+}
+
+function wfCode(processId) {
+  const px = currentPrefix();
+  const m = String(processId || '').match(/(\d+)$/);
+  return m ? `${px}-WF-${String(Number(m[1])).padStart(3, '0')}` : `${px}-WF-${processId}`;
+}
+
+function syncPrefixInputs() {
+  const px = currentPrefix();
+  if ($('prefix-input-step1')) $('prefix-input-step1').value = px;
+  if ($('prefix-input-step2')) $('prefix-input-step2').value = px;
+  if ($('prefix-preview-step1')) {
+    $('prefix-preview-step1').textContent = `IDs: ${px}-CA-001 (Catalogue) · ${px}-WF-001 (Work Flows) · ${px}-SC-001 (SC)`;
+  }
+  if ($('code-task-input')) {
+    $('code-task-input').placeholder = `Task ID or slice (e.g. ${px}-SC-001: Implement core domain entity with unit tests)`;
+  }
+}
+
+async function applyProjectPrefix(rawVal) {
+  const clean = String(rawVal || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+  if (clean.length < 2) return toast('Prefix must be at least 2 letters/numbers (e.g. PRJ, CLEP, LSKD).', 'err');
+  try {
+    const res = await api(`/api/projects/${encodeURIComponent(state.project)}/prefix`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefix: clean, renumber_existing: true }),
+    });
+    state.selectedWorkflowIds.clear();
+    state.activeArtProcessId = null;
+    toast(`Prefix set to ${res.prefix} (${res.prefix}-CA-001 · ${res.prefix}-WF-001 · ${res.prefix}-SC-001)`, 'ok');
+    await refreshState();
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
 /* ==================== WIZARD NAVIGATION ==================== */
 window.goStep = function (n) {
   state.step = n;
@@ -452,6 +492,7 @@ async function refreshState() {
     state.activeArtProcessId = artIds[0] || (procs[0] && procs[0].id) || null;
   }
 
+  syncPrefixInputs();
   updateWizardBadges();
   renderStep1();
   renderStep2();
@@ -1127,7 +1168,7 @@ function renderFlowsMapCanvas() {
     return `
       <div class="flow-node-card ${hasArt ? 'has-art' : ''} ${active ? 'active' : ''}" oncontextmenu="openItemContextMenu(event,'${escapeHtml(p.id)}','${escapeHtml(p.name)}',3)">
         <div class="fnc-head">
-          <span class="fnc-id">${escapeHtml(p.id)}</span>
+          <span class="fnc-id">${escapeHtml(wfCode(p.id))}</span>
           <span class="fnc-status ${hasArt ? 'ok' : 'todo'}">${hasArt ? '✓ 4 Docs Ready' : 'Not Generated'}</span>
         </div>
         <div class="fnc-body">
@@ -1166,7 +1207,7 @@ function renderArtifactStudio() {
   $('selected-count-label').textContent = `(${state.selectedWorkflowIds.size}/${procs.length})`;
 
   const activeProc = procs.find((p) => p.id === state.activeArtProcessId);
-  $('active-proc-chip').textContent = activeProc ? `${activeProc.id} · ${activeProc.name}` : 'Select a flow';
+  $('active-proc-chip').textContent = activeProc ? `${wfCode(activeProc.id)} · ${activeProc.name}` : 'Select a flow';
 
   // Left collapsible rail: checkboxes + flow selection + right-click context menu
   $('art-process-rail').innerHTML = procs.map((p) => {
@@ -1177,7 +1218,7 @@ function renderArtifactStudio() {
       <div class="flow-item ${active ? 'active' : ''}" onclick="selectArtProcess('${escapeHtml(p.id)}')" oncontextmenu="openItemContextMenu(event,'${escapeHtml(p.id)}','${escapeHtml(p.name)}',3)">
         <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleWorkflowSelection('${escapeHtml(p.id)}', this.checked)" />
         <div class="flow-item-meta">
-          <strong>${escapeHtml(p.id)}</strong>
+          <strong>${escapeHtml(wfCode(p.id))}</strong>
           <small>${escapeHtml(p.name)}</small>
         </div>
         <span class="flow-dot ${hasArt ? 'ready' : ''}" title="${hasArt ? '4 artifacts generated' : 'Not generated yet'}"></span>
@@ -1682,11 +1723,18 @@ function wireEvents() {
     };
   });
 
+  $('btn-save-prefix-step1').onclick = () => applyProjectPrefix($('prefix-input-step1').value);
+  $('btn-save-prefix-step2').onclick = () => applyProjectPrefix($('prefix-input-step2').value);
+  $('prefix-input-step1').addEventListener('input', (e) => {
+    const px = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'PRJ';
+    $('prefix-preview-step1').textContent = `IDs: ${px}-CA-001 (Catalogue) · ${px}-WF-001 (Work Flows) · ${px}-SC-001 (SC)`;
+  });
+
   $('btn-add-process').onclick = () => {
     syncActiveProcessFormToDraft();
     const procs = state.catalogueDraft.processes;
     procs.push({
-      id: `PROC-${String(procs.length + 1).padStart(3, '0')}`,
+      id: `${currentPrefix()}-CA-${String(procs.length + 1).padStart(3, '0')}`,
       name: 'New Process', description: '', actors: [], trigger: '', inputs: [], outputs: [],
       steps: [], exceptions: [], messages: [], entities: [], rules: [],
       open_questions: [], evidence: [], confidence: 'medium',

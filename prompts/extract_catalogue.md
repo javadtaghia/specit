@@ -1,6 +1,6 @@
 TASK: EXTRACT A COMPLETE PROCESS & SYSTEM CATALOGUE from the supplied SOURCE SEGMENT.
 Identify all operational/business processes and meaningful subprocesses, plus cross-cutting architecture details.
-For each process, provide: a stable readable ID (e.g. EQ-001, RES-001, PROC-001), name, description, actors, triggering event, inputs, outputs, ordered steps, exceptions, messages/touchpoints, entities, source-defined rules, and unresolved questions.
+For each process, provide: a uniform sequential ID using ONLY the project catalogue prefix provided in the prompt (e.g. PRJ-CA-001, PRJ-CA-002 — never invent category codes like LO, MO, EQ, RPT, OVD), name, description, actors, triggering event, inputs, outputs, ordered steps, exceptions, messages/touchpoints, entities, source-defined rules, and unresolved questions.
 Also extract cross-cutting sections when present in the segment:
 - systems: external/internal systems or components, their responsibility, and ownership split (preserve table column ownership accurately)
 - glossary: abbreviations and domain terms with definitions

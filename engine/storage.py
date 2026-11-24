@@ -9,6 +9,20 @@ def slug(name: str) -> str:
     return re.sub(r'[^a-z0-9-]+', '-', name.lower()).strip('-')[:65] or 'project'
 
 
+def normalize_prefix(raw: str, fallback: str = 'PRJ') -> str:
+    cleaned = re.sub(r'[^A-Za-z0-9]+', '', (raw or '').upper())[:10]
+    return cleaned if len(cleaned) >= 2 else fallback
+
+
+def workflow_id_for(process_id: str, prefix: str = 'PRJ') -> str:
+    """Convert catalogue ID like PRJ-CA-001 into its matching workflow ID PRJ-WF-001."""
+    px = normalize_prefix(prefix)
+    m = re.search(r'(\d+)$', process_id or '')
+    if m:
+        return f'{px}-WF-{int(m.group(1)):03d}'
+    return f'{px}-WF-{re.sub(r"[^A-Za-z0-9]+", "", process_id or "001").upper()[:8]}'
+
+
 class Store:
     def __init__(self, root='workspace'):
         self.root = Path(root).resolve()
@@ -165,3 +179,68 @@ class Store:
         if target.parent != (p / 'assets').resolve() or not target.exists():
             raise FileNotFoundError(safe)
         return target
+
+    def get_prefix(self, p: Path) -> str:
+        meta = self.read(p, 'project_meta', {}) or {}
+        if meta.get('prefix'):
+            return normalize_prefix(meta['prefix'])
+        # Default clean prefix from first token of project slug, fallback PRJ
+        token = (p.name.split('-')[0] or 'PRJ').upper()
+        if token in ('MY', 'NEW', 'TEST', 'PROJECT'):
+            return 'PRJ'
+        return normalize_prefix(token[:6], fallback='PRJ')
+
+    def set_prefix(self, p: Path, prefix: str, renumber_existing: bool = True) -> dict:
+        px = normalize_prefix(prefix)
+        meta = self.read(p, 'project_meta', {}) or {}
+        meta['prefix'] = px
+        self.write(p, 'project_meta', meta, f'set project prefix to {px}')
+
+        id_map: dict[str, str] = {}
+        if renumber_existing:
+            cat = self.read(p, 'catalogue')
+            if cat and isinstance(cat.get('processes'), list):
+                for idx, proc in enumerate(cat['processes'], 1):
+                    old_id = proc.get('id', '')
+                    new_id = f'{px}-CA-{idx:03d}'
+                    if old_id:
+                        id_map[old_id] = new_id
+                    proc['id'] = new_id
+                    for r_idx, rule in enumerate(proc.get('rules', []), 1):
+                        if isinstance(rule, dict):
+                            rule['id'] = f'{new_id}-R{r_idx}'
+                self.write(p, 'catalogue', cat, f'applied uniform prefix {px}-CA-NNN')
+
+            # Migrate linked artifacts, diagrams, and comments cleanly
+            for old_id, new_id in id_map.items():
+                if old_id == new_id:
+                    continue
+                old_art = p / f'artifact_{old_id}.json'
+                if old_art.exists():
+                    art_data = json.loads(old_art.read_text(encoding='utf-8'))
+                    art_data['process_id'] = new_id
+                    self.write(p, f'artifact_{new_id}', art_data, f'renamed from {old_id} to {new_id}')
+                    old_art.unlink()
+                for kind in ('workflow', 'boundaries', 'domain', 'states'):
+                    old_d = p / 'diagrams' / f'{slug(f"{old_id}_{kind}")}.drawio'
+                    new_d = p / 'diagrams' / f'{slug(f"{new_id}_{kind}")}.drawio'
+                    if old_d.exists() and not new_d.exists():
+                        old_d.rename(new_d)
+                    old_s = p / 'diagrams' / f'{slug(f"{old_id}_{kind}")}.svg'
+                    new_s = p / 'diagrams' / f'{slug(f"{new_id}_{kind}")}.svg'
+                    if old_s.exists() and not new_s.exists():
+                        old_s.rename(new_s)
+
+            if id_map:
+                comments = self.read(p, 'comments', [])
+                changed = False
+                for c in comments:
+                    tk = c.get('target_key', '')
+                    for old_id, new_id in id_map.items():
+                        if f'::{old_id}' in tk:
+                            c['target_key'] = tk.replace(f'::{old_id}', f'::{new_id}')
+                            changed = True
+                if changed:
+                    self.write(p, 'comments', comments, f'updated comment scopes for prefix {px}')
+
+        return {'prefix': px, 'renamed': id_map}
