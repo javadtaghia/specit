@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPECiT — Open Canvas · Word · Diagram Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Patrick+Hand&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <!-- Single Compact 48px Top Bar with Inline 6-Step Wizard -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand" title="SPECiT — Open Canvas, Word & Diagram Architecture Studio">
+        <span class="brand-mark">SPEC<span class="brand-it">iT</span></span>
+      </div>
+      <div class="project-switcher">
+        <select id="project-select" title="Switch project workspace"></select>
+        <button id="btn-new-project-prompt" class="icon-btn" title="Create or open another project">＋</button>
+        <label class="icon-btn file-btn" title="Open / import a project from a .zip bundle">📂<input id="import-project-zip-input" type="file" accept=".zip" hidden /></label>
+      </div>
+    </div>
+
+    <nav class="wizard-inline" aria-label="6-Step Architecture Wizard">
+      <button class="wstep active" data-step="1" title="1. Upload project documents & Automatic extraction">
+        <span class="wnum">1</span><span class="wlbl">Upload</span><span class="wbadge" id="badge-step-1"></span>
+      </button>
+      <span class="warrow">›</span>
+      <button class="wstep" data-step="2" title="2. Review process catalogue & Human approval">
+        <span class="wnum">2</span><span class="wlbl">Catalogue</span><span class="wbadge" id="badge-step-2"></span>
+      </button>
+      <span class="warrow">›</span>
+      <button class="wstep" data-step="3" title="3. Open Canvas: Flows, Word Docs & Draw.io Diagrams">
+        <span class="wnum">3</span><span class="wlbl">Canvas Studio</span><span class="wbadge" id="badge-step-3"></span>
+      </button>
+      <span class="warrow">›</span>
+      <button class="wstep" data-step="4" title="4. Review, compare, assess quality & feedback loop">
+        <span class="wnum">4</span><span class="wlbl">Quality</span><span class="wbadge" id="badge-step-4"></span>
+      </button>
+      <span class="warrow">›</span>
+      <button class="wstep" data-step="5" title="5. Spec Kit foundation: Constitution, Spec, Clarification">
+        <span class="wnum">5</span><span class="wlbl">Foundation</span><span class="wbadge" id="badge-step-5"></span>
+      </button>
+      <span class="warrow">›</span>
+      <button class="wstep" data-step="6" title="6. Plan, tasks, exports & code proposals">
+        <span class="wnum">6</span><span class="wlbl">Plan &amp; Code</span><span class="wbadge" id="badge-step-6"></span>
+      </button>
+    </nav>
+
+    <div class="topbar-right">
+      <button id="llm-pill" class="provider-logo-btn" title="AI Provider"></button>
+      <button id="btn-git" class="tbtn" title="Connect project to Git, commit locally & push changes">⎇ Git <span id="git-badge" class="git-dot hidden"></span></button>
+      <button id="btn-export-project-zip" class="tbtn" title="Export entire project as a portable .zip archive">📦 .zip</button>
+      <button id="btn-export-docx" class="tbtn" title="Download Complete MS Word Architecture Document (.docx)">📄 .docx</button>
+      <button id="btn-history" class="tbtn" title="Version History & Restore">🕒</button>
+      <button id="btn-settings" class="tbtn" title="AI Subscriptions & Settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- Toast & Busy Overlay -->
+  <div id="toast" class="toast hidden"></div>
+  <div id="busy-overlay" class="busy-overlay hidden">
+    <div class="busy-card">
+      <div class="spinner"></div>
+      <div id="busy-message">Working with AI provider...</div>
+      <div id="busy-sub" class="muted"></div>
+    </div>
+  </div>
+
+  <!-- Full-Viewport Workspace -->
+  <main class="main-shell">
+
+    <!-- ==================== STEP 1: UPLOAD & EXTRACT ==================== -->
+    <section id="step-1" class="step-panel active scroll-panel">
+      <div class="panel-inner">
+        <div class="slim-header">
+          <div>
+            <h2>1. Upload Project Documents &amp; Extract</h2>
+            <span class="muted">DOCX, table-aware PDF, Markdown, or TXT — extracted into processes, systems, glossary, NFRs, and open questions.</span>
+          </div>
+          <div class="row-actions">
+            <button id="btn-load-sample" class="btn btn-secondary">⚡ Load Sample (sample_document.pdf)</button>
+            <button id="btn-extract" class="btn btn-primary">✨ Extract Process Catalogue</button>
+            <button class="btn" onclick="goStep(2)">Step 2: Catalogue →</button>
+          </div>
+        </div>
+
+        <div class="upload-center">
+          <div class="card flex-col" style="gap: 12px;">
+            <div id="dropzone" class="dropzone">
+              <input id="file-input" type="file" multiple accept=".docx,.pdf,.md,.txt" />
+              <div class="dropzone-icon">📁</div>
+              <div><strong>Click or drop DOCX / PDF / MD / TXT files here</strong></div>
+              <small class="muted">Tables in PDFs and DOCX are preserved automatically during extraction.</small>
+            </div>
+            <div id="source-list" class="source-list"></div>
+            <div>
+              <label class="field-label" for="extract-feedback">Optional reviewer guidance for extraction</label>
+              <textarea id="extract-feedback" rows="3" placeholder="Leave blank for first run; add guidance when re-extracting..."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 2: CATALOGUE REVIEW ==================== -->
+    <section id="step-2" class="step-panel full-panel">
+      <div class="studio-bar">
+        <div class="row-actions">
+          <strong>2. Process Catalogue</strong>
+          <div class="seg-group">
+            <button class="seg-btn active" data-cattab="processes">Processes</button>
+            <button class="seg-btn" data-cattab="context">Systems · Glossary · NFRs · Open Items</button>
+            <button class="seg-btn" data-cattab="json">Raw JSON</button>
+          </div>
+          <span id="cat-metrics-inline" class="muted"></span>
+        </div>
+        <div class="row-actions">
+          <button id="btn-cat-comments" class="btn btn-xs" title="Add review comments & run AI review/rerun on this process">💬 Comments</button>
+          <input id="cat-save-note" type="text" class="inline-note" placeholder="Change note..." />
+          <button id="btn-save-catalogue" class="btn btn-xs">💾 Save</button>
+          <span id="cat-approval-badge" class="status-pill pill-warn">Not Approved</span>
+          <button id="btn-approve-cat" class="btn btn-xs btn-success">✓ Approve</button>
+          <button id="btn-revoke-cat" class="btn btn-xs btn-danger-outline hidden">Revoke</button>
+          <button class="btn btn-xs btn-primary" onclick="goStep(3)">Open Canvas Studio →</button>
+        </div>
+      </div>
+
+      <div id="cat-static-warnings" class="slim-alert hidden"></div>
+
+      <div id="cat-empty" class="empty-center">
+        <div>
+          <h3>No process catalogue extracted yet</h3>
+          <p class="muted">Upload a document and run Automatic Extraction in Step 1.</p>
+          <button class="btn btn-primary" onclick="goStep(1)">← Go to Step 1</button>
+        </div>
+      </div>
+
+      <div id="cat-workspace" class="full-body hidden">
+        <div id="cattab-processes" class="cat-subpanel active full-split">
+          <aside class="rail-pane">
+            <div class="rail-head">
+              <strong>Processes</strong>
+              <button id="btn-add-process" class="btn btn-xs">+ Add</button>
+            </div>
+            <div id="process-list" class="rail-scroll"></div>
+          </aside>
+          <div class="content-scroll" id="process-editor-pane"></div>
+        </div>
+
+        <div id="cattab-context" class="cat-subpanel content-scroll">
+          <div class="grid-2" id="cat-context-editor"></div>
+        </div>
+
+        <div id="cattab-json" class="cat-subpanel full-pad">
+          <textarea id="cat-raw-json" class="json-editor full-textarea"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 3: OPEN CANVAS STUDIO (FLOWS + WORD + DRAW.IO) ==================== -->
+    <section id="step-3" class="step-panel full-panel">
+      <!-- Slim 42px Studio Toolbar -->
+      <div class="studio-bar">
+        <div class="row-actions">
+          <button id="btn-toggle-rail" class="btn btn-xs" title="Collapse / expand workflows panel">☰ Flows</button>
+          <span id="active-proc-chip" class="proc-chip">Select a flow</span>
+
+          <!-- 4 Architecture Artifacts -->
+          <div class="seg-group" id="art-doc-tabs">
+            <button class="seg-btn active" data-artfield="workflow_md" data-kind="workflow">Workflow</button>
+            <button class="seg-btn" data-artfield="boundaries_md" data-kind="boundaries">Boundaries</button>
+            <button class="seg-btn" data-artfield="domain_md" data-kind="domain">Domain</button>
+            <button class="seg-btn" data-artfield="states_md" data-kind="states">States</button>
+          </div>
+        </div>
+
+        <div class="row-actions">
+          <!-- Open Canvas View Switcher -->
+          <div class="seg-group" id="canvas-mode-tabs">
+            <button class="seg-btn" data-cmode="map" title="Interactive pan/zoom open canvas of all flows & steps">🗺️ Flows Map</button>
+            <button class="seg-btn active" data-cmode="word" title="Full-canvas readable MS Word document with live seamless diagram">📄 Word View</button>
+            <button class="seg-btn" data-cmode="split" title="Edit Markdown with Word ribbon + live Word preview">✏️ Edit</button>
+            <button class="seg-btn" data-cmode="diagram" title="Built-in interactive diagram editor (drag, connect, edit & save directly into document)">📐 Diagram Editor</button>
+          </div>
+
+          <button id="btn-art-comments" class="btn btn-xs" title="Review comments, AI Review & Scoped Rerun">💬 Comments</button>
+          <button id="btn-toggle-regen-pop" class="btn btn-xs btn-secondary" title="Regenerate all 4 docs for this process">↻ Regen</button>
+          <button id="btn-download-art-docx" class="btn btn-xs btn-word" title="Download this document as MS Word (.docx)">.docx</button>
+          <button id="btn-download-drawio" class="btn btn-xs btn-drawio" title="Download Draw.io file (.drawio)">.drawio</button>
+          <button class="btn btn-xs btn-primary" onclick="goStep(4)">Step 4: Quality →</button>
+        </div>
+      </div>
+
+      <div id="step3-gate" class="slim-alert warn hidden">
+        Catalogue not yet approved — approve it in <a href="#" onclick="goStep(2); return false;">Step 2</a> to unlock generation.
+      </div>
+
+      <!-- Optional inline regenerate feedback drawer (supports single OR batch regenerate!) -->
+      <div id="regen-popover" class="regen-bar hidden">
+        <input id="art-regen-feedback" type="text" placeholder="Revision feedback to apply (e.g. add offline RMS fallback state transition, enforce idempotency rules)..." />
+        <button id="btn-regen-single-art" class="btn btn-xs btn-secondary">↻ Regen Active</button>
+        <button id="btn-regen-batch-art" class="btn btn-xs btn-primary">↻ Regen Selected (<span id="regen-sel-count">0</span>)</button>
+        <button id="btn-regen-stop" class="btn btn-xs btn-danger-outline hidden">⏹ Stop</button>
+        <button id="btn-close-regen" class="btn btn-xs">✕</button>
+      </div>
+
+      <!-- Main Open Canvas Split: Collapsible Flows Rail + Full-Height Open Canvas -->
+      <div class="canvas-shell" id="studio-canvas-shell">
+        <!-- Collapsible Left Flows Rail -->
+        <aside class="flows-rail" id="flows-rail">
+          <div class="rail-head">
+            <strong>Workflows <span id="selected-count-label" class="muted"></span></strong>
+            <div class="row-actions" style="gap:4px;">
+              <button id="btn-select-all-wf" class="btn btn-2xs" title="Select all workflows">All</button>
+              <button id="btn-select-missing-wf" class="btn btn-2xs" title="Select ungenerated workflows">Todo</button>
+            </div>
+          </div>
+          <div class="rail-gen-bar">
+            <button id="btn-generate-selected" class="btn btn-primary btn-xs" style="width:100%;">✨ Generate Selected</button>
+            <div id="batch-progress" class="progress-wrap hidden">
+              <div class="progress-track"><div id="batch-progress-bar" class="progress-fill"></div></div>
+              <small id="batch-progress-text"></small>
+            </div>
+          </div>
+          <div id="art-process-rail" class="rail-scroll"></div>
+        </aside>
+
+        <!-- Full-Height Open Canvas Stage -->
+        <div class="canvas-stage">
+
+          <!-- MODE 1: OPEN FLOWS MAP (Miro/Draw.io style pan & zoom canvas of all processes & steps) -->
+          <div id="cmode-map" class="canvas-pane dot-grid hidden">
+            <div class="floating-controls">
+              <button class="fc-btn" onclick="mapPanZoom.zoomBy(1.2)" title="Zoom in">＋</button>
+              <button class="fc-btn" onclick="mapPanZoom.zoomBy(0.83)" title="Zoom out">－</button>
+              <button class="fc-btn" onclick="mapPanZoom.fit()" title="Fit all flows to screen">Fit</button>
+              <button class="fc-btn" onclick="mapPanZoom.reset()" title="100% zoom">100%</button>
+              <span class="fc-hint">Drag to pan · Scroll to zoom · Click any workflow card to open</span>
+            </div>
+            <div class="pz-viewport" id="flows-map-viewport">
+              <div class="pz-content" id="flows-map-board"></div>
+            </div>
+          </div>
+
+          <!-- MODE 2: FULL-CANVAS DIRECTLY EDITABLE MS WORD DOCUMENT -->
+          <div id="cmode-word" class="canvas-pane word-stage">
+            <div class="word-inline-bar">
+              <button class="ribbon-btn" onclick="fmtWord('bold')" title="Bold"><b>B</b></button>
+              <button class="ribbon-btn" onclick="fmtWord('italic')" title="Italic"><i>I</i></button>
+              <button class="ribbon-btn" onclick="fmtWord('formatBlock','H2')" title="Heading 2">H2</button>
+              <button class="ribbon-btn" onclick="fmtWord('formatBlock','H3')" title="Heading 3">H3</button>
+              <button class="ribbon-btn" onclick="fmtWord('insertUnorderedList')" title="Bullet List">• List</button>
+              <button class="ribbon-btn" onclick="fmtWord('insertOrderedList')" title="Numbered List">1. List</button>
+              <label class="ribbon-btn file-btn" title="Insert image from computer (or paste Cmd+V / drop image on page)">🖼 Image <input id="word-insert-img-input" type="file" accept="image/*" hidden /></label>
+              <span class="ribbon-sep"></span>
+              <button class="btn btn-xs" id="btn-word-comment-sel" title="Comment on highlighted text in document">💬 Comment</button>
+              <button class="btn btn-xs" id="btn-word-ai-review" title="Ask AI to review just this document">🤖 AI Review</button>
+              <div class="spacer"></div>
+              <span id="word-dirty-indicator" class="muted" style="font-size:11px;">Editable</span>
+              <button class="btn btn-xs btn-primary" id="btn-save-word-direct">💾 Save</button>
+            </div>
+            <div class="word-paper-wide" id="art-word-preview-full" contenteditable="true" spellcheck="true">
+              <p class="muted">Select a workflow on the left (or switch to 🗺️ Flows Map) and click Generate to view its architecture document.</p>
+            </div>
+          </div>
+
+          <!-- MODE 3: SPLIT MS WORD EDITOR (Ribbon + Markdown + Live Word Preview) -->
+          <div id="cmode-split" class="canvas-pane split-stage hidden">
+            <div class="word-ribbon">
+              <button class="ribbon-btn" data-md="h1">H1</button>
+              <button class="ribbon-btn" data-md="h2">H2</button>
+              <button class="ribbon-btn" data-md="h3">H3</button>
+              <span class="ribbon-sep"></span>
+              <button class="ribbon-btn" data-md="bold"><b>B</b></button>
+              <button class="ribbon-btn" data-md="italic"><i>I</i></button>
+              <button class="ribbon-btn" data-md="ul">• List</button>
+              <button class="ribbon-btn" data-md="ol">1. List</button>
+              <button class="ribbon-btn" data-md="table">⊞ Table</button>
+              <button class="ribbon-btn" data-md="callout">❝ Note</button>
+              <button class="ribbon-btn" data-md="mermaid">❖ Mermaid</button>
+              <label class="ribbon-btn file-btn" title="Insert image into Markdown">🖼 Image <input id="split-insert-img-input" type="file" accept="image/*" hidden /></label>
+              <div class="spacer"></div>
+              <input id="art-save-note" type="text" class="inline-note" placeholder="Revision note..." />
+              <button id="btn-save-art" class="btn btn-primary btn-xs">💾 Save Revision</button>
+            </div>
+            <div class="split-editors">
+              <textarea id="art-md-editor" class="md-textarea" placeholder="Write or edit Markdown here..."></textarea>
+              <div class="split-preview-scroll">
+                <div class="word-paper-compact" id="art-word-preview"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODE 4: TRUE FULL-SCREEN BUILT-IN DIAGRAM CANVAS (WITH OBVIOUS BACK BUTTON) -->
+          <div id="cmode-diagram" class="canvas-pane fullscreen-canvas hidden">
+            <div class="diagram-subbar">
+              <div class="row-actions">
+                <button class="btn btn-sm btn-primary" onclick="setCanvasMode('word')">← Back to Document</button>
+                <strong id="full-diagram-title" style="margin-left:6px;">Diagram Canvas</strong>
+              </div>
+              <div class="row-actions">
+                <button id="btn-reset-drawio" class="tbtn">↺ Reset from Mermaid</button>
+                <label class="tbtn file-btn">⬆ Import .drawio <input id="upload-drawio-input" type="file" accept=".drawio,.xml" hidden /></label>
+                <button class="tbtn" onclick="window.location.href='/api/projects/'+encodeURIComponent(state.project)+'/diagrams/'+encodeURIComponent(state.activeArtProcessId)+'/'+state.activeArtKind+'/download'">⬇ .drawio</button>
+              </div>
+            </div>
+            <div id="native-diagram-host" class="flex-1" style="min-height:0;"></div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 4: QUALITY, COMPARE & FEEDBACK ==================== -->
+    <section id="step-4" class="step-panel full-panel">
+      <div class="studio-bar">
+        <div class="row-actions">
+          <strong>4. Review, Compare &amp; Assess Quality</strong>
+          <span id="qa-coverage-summary" class="muted"></span>
+        </div>
+        <div class="row-actions">
+          <button id="btn-run-qa" class="btn btn-xs btn-primary">🔍 Run AI + Deterministic QA</button>
+          <span id="art-approval-badge" class="status-pill pill-warn">Not Approved</span>
+          <label class="checkbox-inline"><input type="checkbox" id="chk-human-ack" /><span>Reviewed</span></label>
+          <button id="btn-approve-arts" class="btn btn-xs btn-success">✓ Approve Architecture</button>
+          <button id="btn-revoke-arts" class="btn btn-xs btn-danger-outline hidden">Revoke</button>
+          <button class="btn btn-xs btn-secondary" onclick="goStep(5)">Step 5: Foundation →</button>
+        </div>
+      </div>
+
+      <div class="full-body grid-2-full">
+        <div class="content-scroll border-right">
+          <!-- Step 4 Batch Run Control Center -->
+          <div class="batch-card">
+            <div class="row-between">
+              <strong>Batch Runs <span id="qa-batch-count" class="muted"></span></strong>
+              <div class="row-actions">
+                <button id="btn-qa-sel-all" class="btn btn-2xs">All</button>
+                <button id="btn-qa-sel-gen" class="btn btn-2xs">Generated</button>
+                <button id="btn-qa-sel-defects" class="btn btn-2xs">With Defects</button>
+                <button id="btn-qa-sel-missing" class="btn btn-2xs">Missing</button>
+              </div>
+            </div>
+            <div id="qa-batch-chips" class="qa-chip-wrap"></div>
+            <div class="row-actions" style="margin-top:8px;">
+              <button id="btn-batch-qa" class="btn btn-xs btn-primary" title="Run deep per-process QA on each selected workflow and merge report">🔍 Batch Deep QA</button>
+              <button id="btn-batch-revise" class="btn btn-xs btn-secondary" title="Revise every selected workflow using QA findings + feedback below">⚡ Batch Revise with Feedback</button>
+              <button id="btn-batch-gen-missing" class="btn btn-xs" title="Generate 4 artifacts for selected missing workflows">✨ Batch Generate Missing</button>
+              <button id="btn-batch-stop" class="btn btn-xs btn-danger-outline hidden">⏹ Stop</button>
+            </div>
+            <div id="qa-batch-progress" class="progress-wrap hidden">
+              <div class="progress-track"><div id="qa-batch-progress-bar" class="progress-fill"></div></div>
+              <small id="qa-batch-progress-text"></small>
+            </div>
+          </div>
+
+          <div id="qa-static-box" class="alert-box hidden"></div>
+          <div id="qa-report-view" class="qa-report"></div>
+          <hr class="divider" />
+          <h4>Reviewer Feedback (used by Batch Revise or Restart Extraction)</h4>
+          <textarea id="qa-feedback" rows="3" placeholder="Enter corrections to apply across selected workflows or restart extraction..."></textarea>
+          <div class="row-actions" style="margin-top:8px;">
+            <button id="btn-restart-extract" class="btn btn-sm btn-secondary">↺ Restart from Extraction with Feedback</button>
+            <button class="btn btn-sm" onclick="goStep(3)">← Back to Canvas Studio</button>
+          </div>
+        </div>
+
+        <div class="flex-col full-pad" style="overflow:hidden;">
+          <div class="row-between" style="margin-bottom:8px;">
+            <strong>Side-by-Side Compare</strong>
+            <div class="row-actions">
+              <select id="compare-mode" style="width:auto;">
+                <option value="source">Artifact vs Source Page</option>
+                <option value="diff">Revision Diff</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="compare-diff-controls" class="compare-controls hidden">
+            <select id="compare-key-select"></select>
+            <select id="compare-rev-a"></select>
+            <span>→</span>
+            <select id="compare-rev-b"></select>
+            <button id="btn-load-diff" class="btn btn-xs">Compare</button>
+          </div>
+          <div id="compare-diff-output" class="diff-viewer flex-1 hidden">Select an artifact with 2+ revisions to inspect unified diffs.</div>
+
+          <div id="compare-source-view" class="flex-col flex-1" style="min-height:0;">
+            <div class="compare-controls">
+              <select id="compare-art-select"></select>
+              <select id="compare-src-select"></select>
+            </div>
+            <div class="grid-2 flex-1" style="min-height:0;">
+              <div id="compare-art-pane" class="mini-paper full-scroll"></div>
+              <pre id="compare-src-pane" class="code-scroll full-scroll"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 5: SPEC KIT FOUNDATION ==================== -->
+    <section id="step-5" class="step-panel full-panel">
+      <div class="studio-bar">
+        <div class="row-actions">
+          <strong>5. Spec Kit Foundation</strong>
+          <div class="seg-group">
+            <button class="seg-btn active" data-foundfield="constitution_md">Constitution</button>
+            <button class="seg-btn" data-foundfield="specification_md">Specification</button>
+            <button class="seg-btn" data-foundfield="clarification_md">Clarification</button>
+          </div>
+          <div class="seg-group">
+            <button class="seg-btn active" data-fview="word">📄 Word View</button>
+            <button class="seg-btn" data-fview="split">✏️ Split Edit</button>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button id="btn-found-comments" class="btn btn-xs">💬 Comments</button>
+          <button id="btn-gen-foundation" class="btn btn-xs btn-primary">✨ Generate Foundation</button>
+          <input id="found-save-note" type="text" class="inline-note" placeholder="Revision note..." />
+          <button id="btn-save-found" class="btn btn-xs">💾 Save</button>
+          <button id="btn-download-found-docx" class="btn btn-xs btn-word">.docx</button>
+          <span id="found-approval-badge" class="status-pill pill-warn">Not Approved</span>
+          <button id="btn-approve-found" class="btn btn-xs btn-success">✓ Approve</button>
+          <button class="btn btn-xs btn-secondary" onclick="goStep(6)">Step 6 →</button>
+        </div>
+      </div>
+
+      <div id="step5-gate" class="slim-alert warn hidden">
+        Approve architecture in <a href="#" onclick="goStep(4); return false;">Step 4</a> first to unlock Spec Kit Foundation generation.
+      </div>
+
+      <div class="full-body" id="found-stage">
+        <div id="found-word-stage" class="word-stage full-h">
+          <div class="word-paper-wide" id="found-word-preview-full"></div>
+        </div>
+        <div id="found-split-stage" class="split-editors full-h hidden">
+          <textarea id="found-md-editor" class="md-textarea" placeholder="Click Generate Foundation to draft Constitution, Specification, and Clarification..."></textarea>
+          <div class="split-preview-scroll">
+            <div class="word-paper-compact" id="found-word-preview"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STEP 6: PLAN & IMPLEMENT ==================== -->
+    <section id="step-6" class="step-panel full-panel">
+      <div class="studio-bar">
+        <div class="row-actions">
+          <strong>6. Plan &amp; Implement</strong>
+          <div class="seg-group">
+            <button class="seg-btn active" data-planmode="plan_md">Technical Plan</button>
+            <button class="seg-btn" data-planmode="tasks_md">Ordered Tasks</button>
+            <button class="seg-btn" data-planmode="code">⚙ Code Proposals</button>
+          </div>
+          <div class="seg-group" id="plan-view-toggle">
+            <button class="seg-btn active" data-pview="word">📄 Word View</button>
+            <button class="seg-btn" data-pview="split">✏️ Split Edit</button>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button id="btn-plan-comments" class="btn btn-xs">💬 Comments</button>
+          <button id="btn-gen-planning" class="btn btn-xs btn-primary">✨ Generate Plan &amp; Tasks</button>
+          <input id="plan-save-note" type="text" class="inline-note" placeholder="Revision note..." />
+          <button id="btn-save-plan" class="btn btn-xs">💾 Save</button>
+          <span id="plan-approval-badge" class="status-pill pill-warn">Not Approved</span>
+          <button id="btn-approve-plan" class="btn btn-xs btn-success">✓ Approve</button>
+          <button id="btn-export-speckit" class="btn btn-xs btn-secondary">📦 Spec Kit .zip</button>
+          <button id="btn-export-full-docx-2" class="btn btn-xs btn-word">📄 Full SAD .docx</button>
+        </div>
+      </div>
+
+      <div class="regen-bar" id="tech-pref-bar">
+        <input id="tech-preferences" type="text" placeholder="Preferred tech stack & constraints (e.g. C#/.NET 8 modular monolith, PostgreSQL, React + TypeScript, on-premise)..." />
+        <button id="btn-download-plan-docx" class="btn btn-xs btn-word">Export Active .docx</button>
+      </div>
+
+      <div class="full-body">
+        <div id="plan-word-stage" class="word-stage full-h">
+          <div class="word-paper-wide" id="plan-word-preview-full"></div>
+        </div>
+        <div id="plan-split-stage" class="split-editors full-h hidden">
+          <textarea id="plan-md-editor" class="md-textarea" placeholder="Click Generate Plan & Tasks..."></textarea>
+          <div class="split-preview-scroll">
+            <div class="word-paper-compact" id="plan-word-preview"></div>
+          </div>
+        </div>
+        <div id="plan-code-stage" class="full-h flex-col full-pad hidden">
+          <div class="row-actions" style="margin-bottom:10px;">
+            <input id="code-task-input" type="text" style="flex:1;" placeholder="Task ID or vertical slice (e.g. TASK-001: Implement EquipmentItem & Reservation domain entities with unit tests)" />
+            <button id="btn-gen-code" class="btn btn-primary btn-sm">⚙ Generate Code Proposal</button>
+          </div>
+          <div id="code-proposal-viewer" class="flex-col flex-1 hidden" style="min-height:0;">
+            <div id="code-notes" class="alert-box"></div>
+            <div class="full-split flex-1" style="min-height:0; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+              <aside class="rail-pane">
+                <div class="rail-head"><strong>Proposed Files</strong></div>
+                <div id="code-file-list" class="rail-scroll"></div>
+              </aside>
+              <div class="flex-col flex-1" style="min-width:0;">
+                <div class="rail-head"><strong id="code-active-path">Select a file</strong></div>
+                <pre id="code-active-content" class="code-scroll flex-1" style="max-height:none;"></pre>
+              </div>
+            </div>
+            <div class="row-between" style="margin-top:10px;">
+              <label class="checkbox-inline"><input type="checkbox" id="chk-code-reviewed" /><span>I reviewed all file paths &amp; code contents (untested).</span></label>
+              <div class="row-actions">
+                <label class="checkbox-inline"><input type="checkbox" id="chk-code-overwrite" /><span>Allow overwrite</span></label>
+                <button id="btn-save-code" class="btn btn-success btn-sm">💾 Save to generated-code/</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== SLIDE-OVER COMMENTS & SCOPED AI REVIEW DRAWER ==================== -->
+  <aside id="comments-drawer" class="comments-drawer hidden">
+    <div class="cd-head">
+      <strong>💬 Review Comments &amp; Scoped AI</strong>
+      <button id="btn-comments-close" class="tbtn">✕</button>
+    </div>
+    <div id="cd-target-label" class="cd-target">Scope: ...</div>
+    <div id="cd-list" class="cd-list"></div>
+    <div class="cd-composer">
+      <div id="cd-quote-preview" class="comment-quote hidden"></div>
+      <textarea id="cd-input" rows="3" placeholder="Add a review comment on this item (or highlight text in the Word doc first)..."></textarea>
+      <div class="row-actions">
+        <button id="btn-cd-add" class="btn btn-xs btn-primary">Add Comment</button>
+        <button id="btn-cd-clear-quote" class="btn btn-2xs hidden">Clear Quote</button>
+      </div>
+      <hr class="divider" style="margin:4px 0;" />
+      <div class="row-actions">
+        <button id="btn-cd-ai-review" class="btn btn-xs btn-secondary" style="flex:1;" title="Ask AI to review ONLY this item">🤖 Review by AI</button>
+        <button id="btn-cd-ai-rerun" class="btn btn-xs btn-primary" style="flex:1;" title="Rerun ONLY this item applying all open comments">⚡ Rerun This Scope</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==================== SETTINGS MODAL ==================== -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-dialog modal-md">
+      <div class="modal-head">
+        <strong>AI Subscriptions &amp; Studio Settings</strong>
+        <button id="btn-settings-close" class="btn btn-xs">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label">AI Provider (Use Existing Subscription or API Key)</label>
+        <select id="cfg-provider"></select>
+        <div id="provider-help" class="alert-box" style="margin-top:8px; margin-bottom:8px;"></div>
+
+        <div class="row-between" style="margin-top: 8px;">
+          <label class="field-label" style="margin:0;">Model</label>
+          <button id="btn-check-llm" class="btn btn-xs">🔄 Verify Subscription / Provider</button>
+        </div>
+        <div class="row-actions" style="margin-top:4px;">
+          <input id="cfg-model" type="text" value="auto" style="flex:1;" placeholder="Model name or alias" />
+          <select id="cfg-model-list" style="max-width:220px;"><option value="">(preset models)</option></select>
+        </div>
+        <div id="llm-check-status" class="muted" style="margin-top: 6px;"></div>
+
+        <div id="cfg-api-fields" class="hidden">
+          <label class="field-label">API Endpoint URL</label>
+          <input id="cfg-url" type="text" placeholder="https://api.openai.com" />
+          <label class="field-label">API Key / Token (optional if set via environment variable or gh auth)</label>
+          <input id="cfg-api-key" type="password" placeholder="Leave blank to use environment variable" />
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="btn-settings-save" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== GIT SYNC MODAL ==================== -->
+  <div id="git-modal" class="modal hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-head">
+        <strong>⎇ Git Repository Sync (Local Copy &amp; Push)</strong>
+        <button id="btn-git-close" class="btn btn-xs">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="git-local-path" class="muted" style="margin-bottom:10px;"></div>
+        <div class="grid-2">
+          <div class="card">
+            <h4 style="margin-top:0;">1. Connect Remote Git Address</h4>
+            <label class="field-label">Git Remote URL (HTTPS or SSH)</label>
+            <input id="git-remote-url" type="text" placeholder="https://github.com/org/project-architecture.git or git@github.com:org/repo.git" />
+            <label class="field-label">Branch</label>
+            <input id="git-branch" type="text" value="main" />
+            <div class="row-actions" style="margin-top:10px;">
+              <button id="btn-git-connect" class="btn btn-primary btn-sm">🔗 Connect / Init Local Git</button>
+              <button id="btn-git-pull" class="btn btn-secondary btn-sm">⬇ Pull from Git</button>
+              <button id="btn-git-refresh" class="btn btn-xs">↻ Refresh</button>
+            </div>
+            <div id="git-action-output" class="alert-box hidden" style="margin-top:10px;"></div>
+          </div>
+
+          <div class="card">
+            <h4 style="margin-top:0;">2. Commit &amp; Send Changes to Git</h4>
+            <p class="muted" style="margin-top:0;">Automatically exports clean browsable Markdown under <code>docs/</code> plus <code>.drawio</code> diagrams, assets, and workspace state.</p>
+            <label class="field-label">Commit Message</label>
+            <input id="git-commit-msg" type="text" placeholder="e.g. Update CLEP workflows, diagrams and domain model" />
+            <div class="row-actions" style="margin-top:10px;">
+              <button id="btn-git-commit-local" class="btn btn-secondary btn-sm">💾 Commit Locally</button>
+              <button id="btn-git-push" class="btn btn-primary btn-sm">⬆ Commit &amp; Push to Git</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:14px;">
+          <div class="card">
+            <h4 style="margin-top:0;">Local Changes <span id="git-changed-count" class="muted"></span></h4>
+            <div id="git-changed-list" class="rail-scroll" style="max-height:200px;"></div>
+          </div>
+          <div class="card">
+            <h4 style="margin-top:0;">Recent Commits</h4>
+            <div id="git-commits-list" class="rail-scroll" style="max-height:200px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== VERSION HISTORY MODAL ==================== -->
+  <div id="history-modal" class="modal hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-head">
+        <strong>Version History &amp; Restore</strong>
+        <button id="btn-history-close" class="btn btn-xs">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="compare-controls">
+          <label>Artifact:</label>
+          <select id="history-key-select"></select>
+          <button id="btn-history-refresh" class="btn btn-xs">Refresh</button>
+        </div>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div>
+            <h4>Revisions</h4>
+            <div id="history-rev-list" class="rail-scroll" style="max-height: 360px; border:1px solid var(--border); border-radius:8px;"></div>
+          </div>
+          <div>
+            <h4>Latest Diff <span id="history-diff-stats" class="muted"></span></h4>
+            <div id="history-diff-view" class="diff-viewer" style="height: 360px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== RIGHT-CLICK CONTEXT MENU ==================== -->
+  <div id="item-context-menu" class="ctx-menu hidden" role="menu"></div>
+
+  <script src="/static/diagram-editor.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

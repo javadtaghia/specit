@@ -1,0 +1,1 @@
+"""Generic architecture-documentation engine."""
