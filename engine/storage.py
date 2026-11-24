@@ -23,9 +23,12 @@ def workflow_id_for(process_id: str, prefix: str = 'PRJ') -> str:
     return f'{px}-WF-{re.sub(r"[^A-Za-z0-9]+", "", process_id or "001").upper()[:8]}'
 
 
+from .version import default_workspace_root
+
+
 class Store:
-    def __init__(self, root='workspace'):
-        self.root = Path(root).resolve()
+    def __init__(self, root=None):
+        self.root = Path(root).resolve() if root is not None else default_workspace_root()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def project(self, name: str) -> Path:

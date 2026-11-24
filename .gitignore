@@ -4,6 +4,12 @@ __pycache__/
 *.pyc
 *.pyo
 workspace/
+build/
+dist/
+packaging/icons/*.icns
+packaging/icons/*.ico
+packaging/icons/*.png
+packaging/icons/*.iconset/
 demo/raw/
 demo/raw_frames/
 *.log

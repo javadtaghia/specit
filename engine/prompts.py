@@ -1,3 +1,7 @@
-from pathlib import Path
-BASE=Path(__file__).resolve().parent.parent/'prompts'
-def load(name):return (BASE/f'{name}.md').read_text(encoding='utf-8')
+from .version import resource_root
+
+BASE = resource_root() / 'prompts'
+
+
+def load(name: str) -> str:
+    return (BASE / f'{name}.md').read_text(encoding='utf-8')

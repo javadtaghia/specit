@@ -2531,13 +2531,67 @@ function wireEvents() {
   $('btn-history-close').onclick = () => $('history-modal').classList.add('hidden');
   $('history-key-select').onchange = refreshHistoryModal;
   $('btn-history-refresh').onclick = refreshHistoryModal;
+
+  // About Modal
+  const closeAbout = () => $('about-modal').classList.add('hidden');
+  $('btn-about-brand').onclick = openAboutModal;
+  $('btn-about').onclick = openAboutModal;
+  $('btn-about-close').onclick = closeAbout;
+  $('btn-about-ok').onclick = closeAbout;
+  $('about-modal').onclick = (e) => { if (e.target === $('about-modal')) closeAbout(); };
+}
+
+async function loadAbout() {
+  try {
+    state.about = await api('/api/about');
+    if (state.about) {
+      const ver = state.about.version || '0.1.0-beta';
+      const stage = state.about.stage || 'Beta';
+      if ($('topbar-beta-pill')) {
+        $('topbar-beta-pill').textContent = stage.toUpperCase();
+        $('topbar-beta-pill').classList.toggle('hidden', !state.about.is_beta);
+      }
+      if ($('btn-about-brand')) {
+        $('btn-about-brand').title = `About ${state.about.name} v${ver} (${stage})`;
+      }
+    }
+  } catch (_) {
+    // non-fatal
+  }
+}
+
+async function openAboutModal() {
+  if (!state.about) await loadAbout();
+  const info = state.about || {
+    name: 'SPECiT',
+    version: '0.1.0-beta',
+    stage: 'Beta',
+    is_beta: true,
+    workspace_root: 'workspace',
+    frozen: false,
+    repo_url: 'https://github.com/javadtaghia/specit',
+    python_version: '',
+    platform: '',
+  };
+  $('about-version').textContent = `v${info.version}`;
+  $('about-stage').textContent = (info.stage || 'Beta').toUpperCase();
+  $('about-meta-version').textContent = info.version;
+  $('about-meta-stage').textContent = info.stage || 'Beta';
+  $('about-meta-workspace').textContent = info.workspace_root || 'workspace';
+  const runtimeParts = [info.frozen ? 'Standalone Desktop App' : 'Local Python'];
+  if (info.python_version) runtimeParts.push(`Python ${info.python_version}`);
+  if (info.platform) runtimeParts.push(info.platform);
+  $('about-meta-runtime').textContent = runtimeParts.join(' · ');
+  const repoEl = $('about-meta-repo');
+  repoEl.href = info.repo_url || 'https://github.com/javadtaghia/specit';
+  repoEl.textContent = (info.repo_url || 'https://github.com/javadtaghia/specit').replace(/^https?:\/\//, '');
+  $('about-modal').classList.remove('hidden');
 }
 
 /* ==================== BOOTSTRAP ==================== */
 (async function init() {
   mapPanZoom = new PanZoom('flows-map-viewport', 'flows-map-board');
   wireEvents();
-  await loadProviders();
-  await loadProjects();
+  await Promise.all([loadAbout(), loadProviders(), loadProjects()]);
   await refreshState();
 })();

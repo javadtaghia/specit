@@ -1,8 +1,10 @@
 import logging
+import platform
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -37,12 +39,21 @@ from engine.pipeline import (
 )
 from engine.sources import parse_source
 from engine.storage import Store, workflow_id_for
+from engine.version import (
+    APP_NAME,
+    APP_REPO_URL,
+    APP_SHORT,
+    APP_STAGE,
+    APP_VERSION,
+    is_frozen,
+    resource_root,
+)
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = resource_root()
 WEB_DIR = BASE_DIR / 'web'
 EXAMPLES_DIR = BASE_DIR / 'examples'
 
-app = FastAPI(title='SPECiT', version='2.0.0')
+app = FastAPI(title=APP_NAME, version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
@@ -50,10 +61,37 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+
+@app.middleware('http')
+async def _no_cache_ui_assets(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == '/' or request.url.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
 if WEB_DIR.exists():
     app.mount('/static', StaticFiles(directory=str(WEB_DIR)), name='static')
 
 store = Store()
+
+
+@app.get('/api/about')
+def get_about():
+    return {
+        'name': APP_NAME,
+        'short_name': APP_SHORT,
+        'version': APP_VERSION,
+        'stage': APP_STAGE,
+        'is_beta': 'beta' in APP_VERSION.lower() or APP_STAGE.lower() == 'beta',
+        'workspace_root': str(store.root),
+        'frozen': is_frozen(),
+        'repo_url': APP_REPO_URL,
+        'python_version': platform.python_version(),
+        'platform': f'{platform.system()} {platform.machine()}',
+    }
 
 
 class LLMConfig(BaseModel):

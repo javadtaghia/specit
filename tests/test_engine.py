@@ -289,6 +289,24 @@ class EngineTests(unittest.TestCase):
             self.assertIn('README.md', written)
             self.assertTrue((p / 'docs' / 'architecture' / 'EQ-1' / 'workflow.md').is_file())
 
+    def test_about_endpoint_and_launcher_port(self):
+        from fastapi.testclient import TestClient
+        import app as web_app
+        import launcher
+
+        client = TestClient(web_app.app)
+        res = client.get('/api/about')
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body['name'], 'SPECiT')
+        self.assertEqual(body['short_name'], 'Si')
+        self.assertIn('beta', body['version'].lower())
+        self.assertEqual(body['stage'], 'Beta')
+        self.assertTrue(body['is_beta'])
+
+        port = launcher.find_available_port(preferred=0)
+        self.assertGreater(port, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
