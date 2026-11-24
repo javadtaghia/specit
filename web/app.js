@@ -1,7 +1,7 @@
 /* SPECiT — Full-Viewport Open Canvas · MS Word · Hand-Drawn Diagram Studio */
 
 const state = {
-  project: localStorage.getItem('ae_project') || 'clep-test-project',
+  project: localStorage.getItem('ae_project') || 'vending-machine-demo',
   step: 1,
   data: null,
   catalogueDraft: null,
@@ -429,7 +429,7 @@ function syncPrefixInputs() {
 
 async function applyProjectPrefix(rawVal) {
   const clean = String(rawVal || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
-  if (clean.length < 2) return toast('Prefix must be at least 2 letters/numbers (e.g. PRJ, CLEP, LSKD).', 'err');
+  if (clean.length < 2) return toast('Prefix must be at least 2 letters/numbers (e.g. PRJ, VM, LSKD).', 'err');
   try {
     const res = await api(`/api/projects/${encodeURIComponent(state.project)}/prefix`, {
       method: 'PUT',
@@ -867,7 +867,7 @@ function renderStep1() {
   const sources = state.data.sources || [];
   const listEl = $('source-list');
   if (!sources.length) {
-    listEl.innerHTML = '<p class="muted">No documents uploaded yet. Drop a file above or click <b>Load Sample (sample_document.pdf)</b>.</p>';
+    listEl.innerHTML = '<p class="muted">No documents uploaded yet. Drop a file above or click <b>Load Sample (vending_machine_spec.md)</b>.</p>';
   } else {
     listEl.innerHTML = sources.map((s) => `
       <div class="source-row">
@@ -1565,20 +1565,24 @@ async function openGitModal() {
 async function refreshGitModal() {
   const st = await refreshGitBadge();
   if (!st) return;
-  $('git-local-path').innerHTML = `Local workspace copy: <code>${escapeHtml(st.local_path)}</code> · Status: <b>${st.initialized ? `Git initialized on branch "${escapeHtml(st.branch)}"` : 'Not initialized yet'}</b>`;
+  $('git-local-path').innerHTML = `Isolated artifact repo folder: <code>${escapeHtml(st.local_path)}</code> · Status: <b>${st.initialized ? `Independent Git initialized on branch "${escapeHtml(st.branch)}"` : 'Not initialized yet (click Connect / Init Artifacts Git below)'}</b>`;
   if (st.remote_url) $('git-remote-url').value = st.remote_url;
   $('git-branch').value = st.branch || 'main';
 
   const changed = st.changed_files || [];
   $('git-changed-count').textContent = `(${changed.length})`;
-  $('git-changed-list').innerHTML = changed.length
-    ? changed.map((f) => `<div class="list-item" style="padding:5px 8px;"><code>${escapeHtml(f.status)}</code> ${escapeHtml(f.path)}</div>`).join('')
-    : '<p class="muted" style="padding:6px;">Working tree clean — no uncommitted changes.</p>';
+  $('git-changed-list').innerHTML = !st.initialized
+    ? '<p class="muted" style="padding:6px;">Not initialized yet — click <b>Connect / Init Artifacts Git</b> to start archiving this project\'s artifacts independently.</p>'
+    : (changed.length
+      ? changed.map((f) => `<div class="list-item" style="padding:5px 8px;"><code>${escapeHtml(f.status)}</code> ${escapeHtml(f.path)}</div>`).join('')
+      : '<p class="muted" style="padding:6px;">Working tree clean — all project artifacts are committed.</p>');
 
   const commits = st.recent_commits || [];
-  $('git-commits-list').innerHTML = commits.length
-    ? commits.map((c) => `<div class="list-item" style="padding:6px 8px;"><strong><code>${escapeHtml(c.hash)}</code> ${escapeHtml(c.message)}</strong><small>${escapeHtml(c.author)} · ${escapeHtml(c.date)}</small></div>`).join('')
-    : '<p class="muted" style="padding:6px;">No commits yet.</p>';
+  $('git-commits-list').innerHTML = !st.initialized
+    ? '<p class="muted" style="padding:6px;">No artifact commits yet.</p>'
+    : (commits.length
+      ? commits.map((c) => `<div class="list-item" style="padding:6px 8px;"><strong><code>${escapeHtml(c.hash)}</code> ${escapeHtml(c.message)}</strong><small>${escapeHtml(c.author)} · ${escapeHtml(c.date)}</small></div>`).join('')
+      : '<p class="muted" style="padding:6px;">No artifact commits yet.</p>');
 }
 
 /* ==================== VERSION HISTORY MODAL ==================== */
@@ -1686,13 +1690,13 @@ function wireEvents() {
   dz.ondrop = (e) => { e.preventDefault(); dz.classList.remove('dragover'); uploadFiles(e.dataTransfer.files); };
 
   $('btn-load-sample').onclick = async () => {
-    setBusy(true, 'Loading sample_document.pdf...', 'Parsing CLEP OCD with table-aware extractor');
+    setBusy(true, 'Loading vending_machine_spec.md...', 'Parsing Smart Vending Machine sample specification');
     try {
       await api(`/api/projects/${encodeURIComponent(state.project)}/sources/load-example`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: 'sample_document.pdf' }),
+        body: JSON.stringify({ filename: 'vending_machine_spec.md' }),
       });
-      toast('Loaded examples/sample_document.pdf (CLEP OCD)', 'ok');
+      toast('Loaded examples/vending_machine_spec.md (Smart Vending Machine)', 'ok');
       await refreshState();
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
@@ -1774,10 +1778,22 @@ function wireEvents() {
     await refreshState();
   };
 
+  // Retractable Side Panels (Step 2 Catalogue, Step 3 Work Flows, Step 6 Proposed Files)
+  const toggleCatRail = () => $('cattab-processes').classList.toggle('rail-collapsed');
+  if ($('btn-toggle-cat-rail')) $('btn-toggle-cat-rail').onclick = toggleCatRail;
+  if ($('btn-collapse-cat-rail')) $('btn-collapse-cat-rail').onclick = toggleCatRail;
+  if ($('btn-expand-cat-rail')) $('btn-expand-cat-rail').onclick = toggleCatRail;
+
   // Step 3: Open Canvas Studio
-  $('btn-toggle-rail').onclick = () => {
-    $('studio-canvas-shell').classList.toggle('rail-collapsed');
-  };
+  const toggleFlowsRail = () => $('studio-canvas-shell').classList.toggle('rail-collapsed');
+  $('btn-toggle-rail').onclick = toggleFlowsRail;
+  if ($('btn-collapse-flows-rail')) $('btn-collapse-flows-rail').onclick = toggleFlowsRail;
+  if ($('btn-expand-flows-rail')) $('btn-expand-flows-rail').onclick = toggleFlowsRail;
+
+  // Step 6: Code Proposal Files Rail
+  const toggleCodeRail = () => $('code-split-shell').classList.toggle('rail-collapsed');
+  if ($('btn-collapse-code-rail')) $('btn-collapse-code-rail').onclick = toggleCodeRail;
+  if ($('btn-expand-code-rail')) $('btn-expand-code-rail').onclick = toggleCodeRail;
   $('btn-toggle-regen-pop').onclick = () => $('regen-popover').classList.toggle('hidden');
   $('btn-close-regen').onclick = () => $('regen-popover').classList.add('hidden');
 
@@ -2577,6 +2593,7 @@ async function openAboutModal() {
   $('about-stage').textContent = (info.stage || 'Beta').toUpperCase();
   $('about-meta-version').textContent = info.version;
   $('about-meta-stage').textContent = info.stage || 'Beta';
+  if ($('about-meta-license')) $('about-meta-license').textContent = info.license || 'MIT';
   $('about-meta-workspace').textContent = info.workspace_root || 'workspace';
   const runtimeParts = [info.frozen ? 'Standalone Desktop App' : 'Local Python'];
   if (info.python_version) runtimeParts.push(`Python ${info.python_version}`);

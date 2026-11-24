@@ -28,7 +28,7 @@
 
     <div class="topbar-right">
       <button id="llm-pill" class="provider-logo-btn" title="AI Provider"></button>
-      <button id="btn-git" class="tbtn" title="Connect project to Git, commit locally & push changes">⎇ Git <span id="git-badge" class="git-dot hidden"></span></button>
+      <button id="btn-git" class="tbtn" title="Project Artifacts Git Archive — independent Git repo for archiving this project's artifacts (separate from SPECiT source code)">⎇ Artifacts Git <span id="git-badge" class="git-dot hidden"></span></button>
       <button id="btn-export-project-zip" class="tbtn" title="Export entire project as a portable .zip archive">📦 .zip</button>
       <button id="btn-export-docx" class="tbtn" title="Download Complete MS Word Architecture Document (.docx)">📄 .docx</button>
       <button id="btn-history" class="tbtn" title="Version History & Restore">🕒</button>
@@ -88,7 +88,7 @@
             <span class="muted">DOCX, table-aware PDF, Markdown, or TXT — extracted into processes, systems, glossary, NFRs, and open questions.</span>
           </div>
           <div class="row-actions">
-            <button id="btn-load-sample" class="btn btn-secondary">⚡ Load Sample (sample_document.pdf)</button>
+            <button id="btn-load-sample" class="btn btn-secondary">⚡ Load Sample (vending_machine_spec.md)</button>
             <button id="btn-extract" class="btn btn-primary">✨ Extract Process Catalogue</button>
             <button class="btn" onclick="goStep(2)">Step 2: Catalogue →</button>
           </div>
@@ -126,6 +126,7 @@
     <section id="step-2" class="step-panel full-panel">
       <div class="studio-bar">
         <div class="row-actions">
+          <button id="btn-toggle-cat-rail" class="btn btn-xs" title="Retract / expand Processes side panel">☰ Processes</button>
           <strong>2. Process Catalogue</strong>
           <div class="seg-group">
             <button class="seg-btn active" data-cattab="processes">Processes</button>
@@ -158,14 +159,18 @@
       </div>
 
       <div id="cat-workspace" class="full-body hidden">
-        <div id="cattab-processes" class="cat-subpanel active full-split">
+        <div id="cattab-processes" class="cat-subpanel active full-split retractable-split">
           <aside class="rail-pane">
             <div class="rail-head">
               <strong>Processes</strong>
-              <button id="btn-add-process" class="btn btn-xs">+ Add</button>
+              <div class="row-actions" style="gap:4px;">
+                <button id="btn-add-process" class="btn btn-xs">+ Add</button>
+                <button id="btn-collapse-cat-rail" class="btn btn-2xs" title="Retract side panel">◀</button>
+              </div>
             </div>
             <div id="process-list" class="rail-scroll"></div>
           </aside>
+          <button id="btn-expand-cat-rail" class="rail-reopen-tab" title="Expand Processes side panel">▶</button>
           <div class="content-scroll" id="process-editor-pane"></div>
         </div>
 
@@ -231,10 +236,11 @@
         <!-- Collapsible Left Flows Rail -->
         <aside class="flows-rail" id="flows-rail">
           <div class="rail-head">
-            <strong>Workflows <span id="selected-count-label" class="muted"></span></strong>
+            <strong>Work Flows <span id="selected-count-label" class="muted"></span></strong>
             <div class="row-actions" style="gap:4px;">
               <button id="btn-select-all-wf" class="btn btn-2xs" title="Select all workflows">All</button>
               <button id="btn-select-missing-wf" class="btn btn-2xs" title="Select ungenerated workflows">Todo</button>
+              <button id="btn-collapse-flows-rail" class="btn btn-2xs" title="Retract side panel">◀</button>
             </div>
           </div>
           <div class="rail-gen-bar">
@@ -246,6 +252,7 @@
           </div>
           <div id="art-process-rail" class="rail-scroll"></div>
         </aside>
+        <button id="btn-expand-flows-rail" class="rail-reopen-tab" title="Expand Work Flows side panel">▶</button>
 
         <!-- Full-Height Open Canvas Stage -->
         <div class="canvas-stage">
@@ -514,11 +521,15 @@
           </div>
           <div id="code-proposal-viewer" class="flex-col flex-1 hidden" style="min-height:0;">
             <div id="code-notes" class="alert-box"></div>
-            <div class="full-split flex-1" style="min-height:0; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+            <div id="code-split-shell" class="full-split retractable-split flex-1" style="min-height:0; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
               <aside class="rail-pane">
-                <div class="rail-head"><strong>Proposed Files</strong></div>
+                <div class="rail-head">
+                  <strong>Proposed Files</strong>
+                  <button id="btn-collapse-code-rail" class="btn btn-2xs" title="Retract files panel">◀</button>
+                </div>
                 <div id="code-file-list" class="rail-scroll"></div>
               </aside>
+              <button id="btn-expand-code-rail" class="rail-reopen-tab" title="Expand Proposed Files panel">▶</button>
               <div class="flex-col flex-1" style="min-width:0;">
                 <div class="rail-head"><strong id="code-active-path">Select a file</strong></div>
                 <pre id="code-active-content" class="code-scroll flex-1" style="max-height:none;"></pre>
@@ -596,49 +607,52 @@
     </div>
   </div>
 
-  <!-- ==================== GIT SYNC MODAL ==================== -->
+  <!-- ==================== PROJECT ARTIFACTS GIT ARCHIVE MODAL ==================== -->
   <div id="git-modal" class="modal hidden">
     <div class="modal-dialog modal-lg">
       <div class="modal-head">
-        <strong>⎇ Git Repository Sync (Local Copy &amp; Push)</strong>
+        <strong>⎇ Project Artifacts Git Archive (Independent Repo)</strong>
         <button id="btn-git-close" class="btn btn-xs">✕</button>
       </div>
       <div class="modal-body">
+        <div class="alert-box" style="margin-bottom:10px; background:#f0f9ff; border-color:#bae6fd; color:#0c4a6e;">
+          <strong>Independent Project Artifacts Repository:</strong> Archives only this project's specifications, work flows, diagrams, and assets in its own isolated <code>.git</code> folder — completely independent from the SPECiT dashboard &amp; source-code repository.
+        </div>
         <div id="git-local-path" class="muted" style="margin-bottom:10px;"></div>
         <div class="grid-2">
           <div class="card">
-            <h4 style="margin-top:0;">1. Connect Remote Git Address</h4>
-            <label class="field-label">Git Remote URL (HTTPS or SSH)</label>
-            <input id="git-remote-url" type="text" placeholder="https://github.com/org/project-architecture.git or git@github.com:org/repo.git" />
+            <h4 style="margin-top:0;">1. Connect Artifacts Git Repository</h4>
+            <label class="field-label">Artifacts Git Remote URL (HTTPS or SSH)</label>
+            <input id="git-remote-url" type="text" placeholder="https://github.com/org/project-artifacts.git or git@github.com:org/artifacts-repo.git" />
             <label class="field-label">Branch</label>
             <input id="git-branch" type="text" value="main" />
             <div class="row-actions" style="margin-top:10px;">
-              <button id="btn-git-connect" class="btn btn-primary btn-sm">🔗 Connect / Init Local Git</button>
-              <button id="btn-git-pull" class="btn btn-secondary btn-sm">⬇ Pull from Git</button>
+              <button id="btn-git-connect" class="btn btn-primary btn-sm">🔗 Connect / Init Artifacts Git</button>
+              <button id="btn-git-pull" class="btn btn-secondary btn-sm">⬇ Pull Artifacts</button>
               <button id="btn-git-refresh" class="btn btn-xs">↻ Refresh</button>
             </div>
             <div id="git-action-output" class="alert-box hidden" style="margin-top:10px;"></div>
           </div>
 
           <div class="card">
-            <h4 style="margin-top:0;">2. Commit &amp; Send Changes to Git</h4>
-            <p class="muted" style="margin-top:0;">Automatically exports clean browsable Markdown under <code>docs/</code> plus <code>.drawio</code> diagrams, assets, and workspace state.</p>
+            <h4 style="margin-top:0;">2. Commit &amp; Archive Project Artifacts</h4>
+            <p class="muted" style="margin-top:0;">Automatically exports clean browsable Markdown under <code>docs/</code> plus <code>.drawio</code> diagrams, assets, and workspace state for this project.</p>
             <label class="field-label">Commit Message</label>
-            <input id="git-commit-msg" type="text" placeholder="e.g. Update CLEP workflows, diagrams and domain model" />
+            <input id="git-commit-msg" type="text" placeholder="e.g. Archive vending machine work flows, diagrams and domain model" />
             <div class="row-actions" style="margin-top:10px;">
               <button id="btn-git-commit-local" class="btn btn-secondary btn-sm">💾 Commit Locally</button>
-              <button id="btn-git-push" class="btn btn-primary btn-sm">⬆ Commit &amp; Push to Git</button>
+              <button id="btn-git-push" class="btn btn-primary btn-sm">⬆ Commit &amp; Push Artifacts</button>
             </div>
           </div>
         </div>
 
         <div class="grid-2" style="margin-top:14px;">
           <div class="card">
-            <h4 style="margin-top:0;">Local Changes <span id="git-changed-count" class="muted"></span></h4>
+            <h4 style="margin-top:0;">Local Artifact Changes <span id="git-changed-count" class="muted"></span></h4>
             <div id="git-changed-list" class="rail-scroll" style="max-height:200px;"></div>
           </div>
           <div class="card">
-            <h4 style="margin-top:0;">Recent Commits</h4>
+            <h4 style="margin-top:0;">Recent Artifact Commits</h4>
             <div id="git-commits-list" class="rail-scroll" style="max-height:200px;"></div>
           </div>
         </div>
@@ -700,6 +714,7 @@
         <div class="about-meta-grid">
           <div class="about-meta-row"><span class="muted">Version</span><code id="about-meta-version">0.1.0-beta</code></div>
           <div class="about-meta-row"><span class="muted">Release Stage</span><strong id="about-meta-stage">Beta</strong></div>
+          <div class="about-meta-row"><span class="muted">License</span><strong id="about-meta-license">MIT</strong></div>
           <div class="about-meta-row"><span class="muted">Workflow</span><span>Upload → Catalogue (CA) → Work Flows (WF) → Quality → Foundation → SC</span></div>
           <div class="about-meta-row"><span class="muted">Workspace Folder</span><code id="about-meta-workspace">workspace</code></div>
           <div class="about-meta-row"><span class="muted">Runtime</span><span id="about-meta-runtime">Local Python</span></div>

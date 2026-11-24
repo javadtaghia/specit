@@ -293,6 +293,8 @@ class EngineTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         import app as web_app
         import launcher
+        from engine.git_sync import get_git_status, _assert_isolated_project_dir
+        from engine.version import resource_root
 
         client = TestClient(web_app.app)
         res = client.get('/api/about')
@@ -302,7 +304,16 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(body['short_name'], 'Si')
         self.assertIn('beta', body['version'].lower())
         self.assertEqual(body['stage'], 'Beta')
+        self.assertEqual(body['license'], 'MIT')
         self.assertTrue(body['is_beta'])
+
+        # Artifacts Git sync must refuse SPECiT's own source directory and stay independent from parent git repo
+        with self.assertRaises(ValueError):
+            _assert_isolated_project_dir(resource_root())
+        with tempfile.TemporaryDirectory(dir=str(resource_root())) as nested_dir:
+            st = get_git_status(Path(nested_dir))
+            self.assertFalse(st['initialized'])
+            self.assertTrue(st['independent_repo'])
 
         port = launcher.find_available_port(preferred=0)
         self.assertGreater(port, 0)

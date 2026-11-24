@@ -40,6 +40,7 @@ from engine.pipeline import (
 from engine.sources import parse_source
 from engine.storage import Store, workflow_id_for
 from engine.version import (
+    APP_LICENSE,
     APP_NAME,
     APP_REPO_URL,
     APP_SHORT,
@@ -85,6 +86,7 @@ def get_about():
         'short_name': APP_SHORT,
         'version': APP_VERSION,
         'stage': APP_STAGE,
+        'license': APP_LICENSE,
         'is_beta': 'beta' in APP_VERSION.lower() or APP_STAGE.lower() == 'beta',
         'workspace_root': str(store.root),
         'frozen': is_frozen(),
@@ -217,7 +219,7 @@ class RestoreRequest(BaseModel):
 
 
 class LoadExampleRequest(BaseModel):
-    filename: str = 'sample_document.pdf'
+    filename: str = 'vending_machine_spec.md'
 
 
 class ExportSingleDocxRequest(BaseModel):

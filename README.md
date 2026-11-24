@@ -84,3 +84,7 @@ specit/
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
+
+## License
+
+Licensed under the [MIT License](LICENSE).

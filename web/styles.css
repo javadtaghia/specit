@@ -242,24 +242,93 @@ button, input, select, textarea { font-family: var(--font-ui); }
 
 /* ==================== STEP 3: OPEN CANVAS STAGE ==================== */
 .canvas-shell {
-  flex: 1; min-height: 0; display: flex; overflow: hidden; width: 100%;
+  flex: 1; min-height: 0; display: flex; overflow: hidden; width: 100%; position: relative;
 }
+.retractable-split { position: relative; }
 .flows-rail {
   width: 248px; flex-shrink: 0; background: var(--surface);
   border-right: 1px solid var(--border); display: flex; flex-direction: column;
-  transition: width 0.16s ease; overflow: hidden;
+  transition: width 0.18s ease, opacity 0.14s ease; overflow: hidden;
 }
-.canvas-shell.rail-collapsed .flows-rail { width: 0; border-right: 0; }
+.canvas-shell.rail-collapsed .flows-rail { width: 0; border-right: 0; opacity: 0; pointer-events: none; }
 .rail-pane {
   width: 270px; flex-shrink: 0; background: var(--surface);
   border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0;
+  transition: width 0.18s ease, opacity 0.14s ease; overflow: hidden;
 }
+.retractable-split.rail-collapsed > .rail-pane { width: 0; border-right: 0; opacity: 0; pointer-events: none; }
+
+/* Slim Retracted Edge Re-open Handle */
+.rail-reopen-tab {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  width: 20px;
+  height: 56px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 2px 2px 10px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition: background 0.12s, color 0.12s, width 0.12s;
+}
+.rail-reopen-tab:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  width: 24px;
+}
+.canvas-shell.rail-collapsed > .rail-reopen-tab,
+.retractable-split.rail-collapsed > .rail-reopen-tab {
+  display: inline-flex;
+}
+
 .rail-head {
   padding: 8px 10px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-shrink: 0;
 }
 .rail-gen-bar { padding: 8px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.rail-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.rail-scroll {
+  flex: 1; overflow-y: auto; min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.rail-scroll::-webkit-scrollbar,
+.content-scroll::-webkit-scrollbar,
+.word-stage::-webkit-scrollbar,
+.split-preview-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.rail-scroll::-webkit-scrollbar-track,
+.content-scroll::-webkit-scrollbar-track,
+.word-stage::-webkit-scrollbar-track,
+.split-preview-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rail-scroll::-webkit-scrollbar-thumb,
+.content-scroll::-webkit-scrollbar-thumb,
+.word-stage::-webkit-scrollbar-thumb,
+.split-preview-scroll::-webkit-scrollbar-thumb {
+  background: #d6d3cc;
+  border-radius: 999px;
+}
+.rail-scroll::-webkit-scrollbar-thumb:hover,
+.content-scroll::-webkit-scrollbar-thumb:hover,
+.word-stage::-webkit-scrollbar-thumb:hover,
+.split-preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
+}
 
 .flow-item {
   display: flex; align-items: flex-start; gap: 7px; padding: 8px 10px;
