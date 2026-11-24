@@ -1,6 +1,6 @@
 # SPECiT — Architecture & Specification Studio
 
-**SPECiT** is a local-first, source-grounded, human-reviewed architecture studio that transforms project specifications (OCD / PRD / SRS) into structured process catalogues, editable MS Word-style documents, hand-drawn interactive diagrams (`.drawio`-compatible), adversarial quality assessments, and Spec Kit handoffs.
+**SPECiT** is a local-first, source-grounded, human-reviewed architecture studio that transforms project specifications  into structured process catalogues, editable MS Word-style documents, hand-drawn interactive diagrams (`.drawio`-compatible), adversarial quality assessments, and Spec Kit handoffs.
 
 > Demo walkthrough: [`demo/vending-machine-demo.mp4`](demo/vending-machine-demo.mp4)
 
