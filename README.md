@@ -1,6 +1,6 @@
 # SPECiT (`Si`) — Architecture & Specification Studio *(Beta)*
 
-**SPECiT** (`v0.1.0-beta`) is a local-first, source-grounded, human-reviewed architecture studio that transforms project specifications into structured process catalogues (`{PREFIX}-CA-001`), editable MS Word-style work flows (`{PREFIX}-WF-001`), hand-drawn interactive diagrams (`.drawio`-compatible), adversarial quality assessments, and SC (`{PREFIX}-SC-001`) handoffs.
+**SPECiT** (`v0.1.1-beta`) is a local-first, source-grounded, human-reviewed architecture studio that transforms project specifications into structured process catalogues (`{PREFIX}-CA-001`), editable MS Word-style work flows (`{PREFIX}-WF-001`), hand-drawn interactive diagrams (`.drawio`-compatible), adversarial quality assessments, and SC (`{PREFIX}-SC-001`) handoffs.
 
 > Demo walkthrough: [`demo/vending-machine-demo.mp4`](demo/vending-machine-demo.mp4)
 

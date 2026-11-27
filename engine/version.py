@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = 'SPECiT'
 APP_SHORT = 'Si'
-APP_VERSION = '0.1.0-beta'
+APP_VERSION = '0.1.1-beta'
 APP_STAGE = 'Beta'
 APP_LICENSE = 'MIT'
 APP_REPO_URL = 'https://github.com/javadtaghia/specit'

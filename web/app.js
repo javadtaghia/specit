@@ -2561,7 +2561,7 @@ async function loadAbout() {
   try {
     state.about = await api('/api/about');
     if (state.about) {
-      const ver = state.about.version || '0.1.0-beta';
+      const ver = state.about.version || '0.1.1-beta';
       const stage = state.about.stage || 'Beta';
       if ($('topbar-beta-pill')) {
         $('topbar-beta-pill').textContent = stage.toUpperCase();
@@ -2580,7 +2580,7 @@ async function openAboutModal() {
   if (!state.about) await loadAbout();
   const info = state.about || {
     name: 'SPECiT',
-    version: '0.1.0-beta',
+    version: '0.1.1-beta',
     stage: 'Beta',
     is_beta: true,
     workspace_root: 'workspace',
