@@ -1,4 +1,4 @@
-name: Build & Release SPECiT (Windows .exe & macOS .dmg)
+name: Build, Sign & Release SPECiT (macOS .dmg, Windows .exe, Linux .tar.gz)
 
 on:
   push:
@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   test:
@@ -31,7 +33,7 @@ jobs:
         run: python -m unittest discover -s tests -v
 
   build-macos:
-    name: Build macOS .dmg
+    name: Build & Sign macOS .dmg
     needs: test
     runs-on: macos-latest
     steps:
@@ -43,10 +45,42 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller pillow
-      - name: Build SPECiT macOS .app and .dmg
+      - name: Import Apple Developer ID certificate (if configured)
+        env:
+          MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [ -z "${MACOS_CERT_BASE64:-}" ]; then
+            echo "MACOS_CERT_BASE64 secret not set — using ad-hoc signing."
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/specit-signing.keychain-db"
+          KEYCHAIN_PASS="$(uuidgen)"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          CERT_PATH="$RUNNER_TEMP/specit-cert.p12"
+          echo "$MACOS_CERT_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+      - name: Build, Sign & Notarize SPECiT macOS .app and .dmg
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           chmod +x packaging/build_mac_dmg.sh
           PYTHON_BIN=python ./packaging/build_mac_dmg.sh
+      - name: Clean up temporary macOS signing keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -54,7 +88,7 @@ jobs:
           path: dist/SPECiT-*.dmg
 
   build-windows:
-    name: Build Windows .exe
+    name: Build & Sign Windows .exe
     needs: test
     runs-on: windows-latest
     steps:
@@ -66,18 +100,63 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller pillow
-      - name: Build SPECiT Windows .exe
+      - name: Decode Windows Authenticode certificate (if configured)
         shell: pwsh
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+        run: |
+          if (-not $env:WINDOWS_CERT_BASE64) {
+            Write-Host "WINDOWS_CERT_BASE64 secret not set — skipping Authenticode certificate import."
+            exit 0
+          }
+          $pfx = "$env:RUNNER_TEMP\specit-win.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          "WINDOWS_CERT_PFX=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build & Sign SPECiT Windows .exe
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: ./packaging/build_win_exe.ps1
+      - name: Clean up temporary Windows signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_CERT_PFX -and (Test-Path $env:WINDOWS_CERT_PFX)) {
+            Remove-Item -Force -ErrorAction SilentlyContinue $env:WINDOWS_CERT_PFX
+          }
       - name: Upload Windows EXE artifact
         uses: actions/upload-artifact@v4
         with:
           name: specit-windows-exe
           path: dist/SPECiT-*-Windows-*.exe
 
+  build-linux:
+    name: Build Linux .tar.gz
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime & packaging dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-tk
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pillow
+      - name: Build SPECiT Linux bundle
+        run: |
+          chmod +x packaging/build_linux.sh
+          PYTHON_BIN=python ./packaging/build_linux.sh
+      - name: Upload Linux bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: specit-linux-tar
+          path: dist/SPECiT-*-Linux-*.tar.gz
+
   release:
-    name: Publish GitHub Release
-    needs: [build-macos, build-windows]
+    name: Sign Checksums, Attest & Publish GitHub Release
+    needs: [build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     steps:
@@ -92,6 +171,39 @@ jobs:
         with:
           name: specit-windows-exe
           path: release-assets
+      - name: Download Linux bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: specit-linux-tar
+          path: release-assets
+      - name: Generate SHA-256 checksums
+        run: |
+          cd release-assets
+          sha256sum SPECiT-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: GPG-sign Linux, macOS, Windows artifacts & checksums (if configured)
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
+            echo "GPG_PRIVATE_KEY secret not set — skipping GPG .asc signatures."
+            exit 0
+          fi
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          KEY_ID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')"
+          cd release-assets
+          for f in SPECiT-* SHA256SUMS.txt; do
+            if [ -n "${GPG_PASSPHRASE:-}" ]; then
+              gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" -u "$KEY_ID" --armor --detach-sign "$f"
+            else
+              gpg --batch --yes -u "$KEY_ID" --armor --detach-sign "$f"
+            fi
+          done
+      - name: Generate GitHub Build Provenance Attestations (SLSA / Sigstore)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'release-assets/SPECiT-*'
       - name: Determine release tag & prerelease flag
         id: meta
         run: |
@@ -106,13 +218,17 @@ jobs:
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Publish Release with .exe & .dmg
+      - name: Publish Release with macOS, Windows, Linux & Signatures
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: SPECiT ${{ steps.meta.outputs.tag }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
+          fail_on_unmatched_files: false
           files: |
             release-assets/*.dmg
             release-assets/*.exe
+            release-assets/*.tar.gz
+            release-assets/SHA256SUMS.txt
+            release-assets/*.asc

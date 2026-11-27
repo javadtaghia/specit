@@ -103,7 +103,7 @@ if IS_MAC:
         },
     )
 else:
-    # Windows single-file standalone .exe (or Linux single binary)
+    # Windows single-file standalone .exe (windowed) or Linux single binary
     exe = EXE(
         pyz,
         a.scripts,
@@ -115,6 +115,6 @@ else:
         bootloader_ignore_signals=False,
         strip=False,
         upx=False,
-        console=False,
+        console=not IS_WIN,
         icon=icon_file,
     )

@@ -17,12 +17,13 @@
 - **Scoped Review Comments & AI Rerun** — Comment on any catalogue process, highlighted text passage, or document; run focused **🤖 Review by AI** or **⚡ Rerun This Scope** with open comments.
 - **Per-Project Git Sync & Portable `.zip` Bundles** — Connect any project workspace to a Git remote (commit locally, push, pull) or export/open the entire project as a portable `.zip` archive.
 
-## Desktop Releases (Windows `.exe` & macOS `.dmg`)
+## Desktop Releases (macOS `.dmg`, Windows `.exe` & Linux `.tar.gz`)
 
 Download pre-built desktop packages from **GitHub Releases**:
 - **macOS**: `SPECiT-<version>-macOS-arm64.dmg` — drag **SPECiT.app** to **Applications** and open.
-  - *Note for unsigned Beta releases on macOS*: Because this beta build is ad-hoc signed (not yet Apple-notarized), macOS Gatekeeper may block the first launch. After trying to open **SPECiT.app**, open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** next to SPECiT. Startup logs are written to `~/Documents/SPECiT/specit.log`.
+  - *Note for unsigned Beta releases on macOS*: Until Apple Developer ID notarization secrets are added, macOS Gatekeeper may block the first launch. After trying to open **SPECiT.app**, open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** next to SPECiT. Startup logs are written to `~/Documents/SPECiT/specit.log`.
 - **Windows**: `SPECiT-<version>-Windows-x64.exe` — double-click to launch SPECiT locally in your browser.
+- **Linux**: `SPECiT-<version>-Linux-x86_64.tar.gz` — extract and run `./SPECiT` (or `./SPECiT --no-gui` in headless terminals).
 
 When launched as a desktop app, SPECiT stores project workspaces in `~/Documents/SPECiT/workspace` (overridable via `SPECIT_WORKSPACE`) and shows a compact desktop status window to reopen the browser, open the workspace folder, or quit cleanly.
 
@@ -37,11 +38,27 @@ pip install -r requirements.txt pyinstaller pillow
 
 # Windows (PowerShell, standalone .exe)
 ./packaging/build_win_exe.ps1
+
+# Linux (standalone .tar.gz)
+./packaging/build_linux.sh
 ```
 
-### Automated GitHub Releases
+### Code Signing, Notarization & Provenance (macOS, Windows, Linux)
 
-Pushing a version tag (e.g. `git tag v0.1.0-beta && git push origin v0.1.0-beta`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which runs all unit tests, builds both **macOS `.dmg`** and **Windows `.exe`**, and attaches them to a GitHub Release (automatically marked as a pre-release for `-beta` tags).
+Every release built by [`.github/workflows/release.yml`](.github/workflows/release.yml) automatically includes:
+- **`SHA256SUMS.txt`** checksums for all platform artifacts.
+- **GitHub Build Provenance Attestations** (SLSA / Sigstore, verify via `gh attestation verify <file> -R javadtaghia/specit`).
+
+To enable full OS-trusted signatures (zero Gatekeeper / SmartScreen warnings + GPG signatures on Linux), add these optional **GitHub Actions Repository Secrets**:
+
+| Platform | Required GitHub Secrets | What It Enables |
+| --- | --- | --- |
+| **macOS** | `MACOS_CERT_BASE64`, `MACOS_CERT_PASSWORD`, `MACOS_SIGN_IDENTITY` | Apple Developer ID signing with Hardened Runtime (`packaging/entitlements.plist`) + timestamp on `.app` & `.dmg` |
+| **macOS Notarization** | `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | Apple `notarytool` notarization + `stapler` ticket stapling (eliminates Gatekeeper warnings) |
+| **Windows** | `WINDOWS_CERT_BASE64`, `WINDOWS_CERT_PASSWORD` | SHA-256 Authenticode signing via `signtool.exe` with DigiCert RFC 3161 timestamp |
+| **Linux / All** | `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE` *(optional)* | Detached GPG `.asc` signatures for `.tar.gz`, `.dmg`, `.exe`, and `SHA256SUMS.txt` |
+
+Pushing a version tag (e.g. `git tag v0.1.0-beta && git push origin v0.1.0-beta`) runs all unit tests, builds & signs all 3 platforms, attaches checksums/signatures/attestations, and publishes the GitHub Release (automatically marked as a pre-release for `-beta` tags).
 
 ## Quick Start (From Source)
 
