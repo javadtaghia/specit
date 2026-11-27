@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import platform
 import socket
@@ -10,11 +11,36 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import urllib.request
 import webbrowser
 from pathlib import Path
 
-from engine.version import APP_NAME, APP_STAGE, APP_VERSION, default_workspace_root
+from engine.version import APP_NAME, APP_STAGE, APP_VERSION, default_workspace_root, is_frozen
+
+
+def _configure_frozen_logging() -> Path | None:
+    """In windowed PyInstaller bundles (console=False), sys.stdout/stderr can be None; log cleanly to file."""
+    if not is_frozen() and sys.stdout is not None and sys.stderr is not None:
+        return None
+    log_dir = Path.home() / 'Documents' / 'SPECiT'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / 'specit.log'
+    try:
+        fh = open(log_path, 'a', encoding='utf-8', buffering=1)
+        if sys.stdout is None:
+            sys.stdout = fh
+        if sys.stderr is None:
+            sys.stderr = fh
+        logging.basicConfig(
+            filename=str(log_path),
+            level=logging.INFO,
+            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            force=True,
+        )
+    except Exception:
+        pass
+    return log_path
 
 
 def _augment_path_for_gui_app() -> None:
@@ -225,56 +251,79 @@ def _run_tk_control_window(url: str, workspace_dir: Path, stop_callback) -> bool
     return True
 
 
-def main() -> None:
+def parse_launcher_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=f'{APP_NAME} v{APP_VERSION} ({APP_STAGE}) Desktop Launcher')
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=int(os.environ.get('SPECIT_PORT', '8501')))
     parser.add_argument('--no-browser', action='store_true', help='Do not auto-open the web browser')
     parser.add_argument('--no-gui', action='store_true', help='Run in terminal/headless mode without Tk status window')
-    args = parser.parse_args()
+    # Use parse_known_args so macOS LaunchServices '-psn_0_...' flags do not crash startup
+    args, _unknown = parser.parse_known_args(argv)
+    return args
 
-    _augment_path_for_gui_app()
 
-    # Import app AFTER PATH augmentation so detected AI CLIs are visible
-    import uvicorn
-    import app as specit_app
+def main() -> None:
+    log_path = _configure_frozen_logging()
+    try:
+        args = parse_launcher_args()
+        _augment_path_for_gui_app()
 
-    port = find_available_port(args.port, args.host)
-    url = f'http://{args.host}:{port}'
-    workspace_dir = default_workspace_root()
+        # Import app AFTER PATH augmentation so detected AI CLIs are visible
+        import uvicorn
+        import app as specit_app
 
-    config = uvicorn.Config(
-        specit_app.app,
-        host=args.host,
-        port=port,
-        log_level='warning' if getattr(sys, 'frozen', False) else 'info',
-    )
-    server = uvicorn.Server(config)
+        port = find_available_port(args.port, args.host)
+        url = f'http://{args.host}:{port}'
+        workspace_dir = default_workspace_root()
 
-    server_thread = threading.Thread(target=server.run, daemon=True)
-    server_thread.start()
+        # Pass log_config=None in frozen/windowed mode so Uvicorn never calls sys.stderr.isatty() on None
+        config_kwargs = {
+            'host': args.host,
+            'port': port,
+            'log_level': 'warning' if is_frozen() else 'info',
+        }
+        if is_frozen() or sys.stderr is None:
+            config_kwargs['log_config'] = None
 
-    if _wait_for_server(url) and not args.no_browser:
-        webbrowser.open(url)
+        config = uvicorn.Config(specit_app.app, **config_kwargs)
+        server = uvicorn.Server(config)
 
-    def stop_server():
-        server.should_exit = True
+        server_thread = threading.Thread(target=server.run, daemon=True)
+        server_thread.start()
 
-    used_gui = False
-    if not args.no_gui:
-        used_gui = _run_tk_control_window(url, workspace_dir, stop_server)
+        if _wait_for_server(url) and not args.no_browser:
+            webbrowser.open(url)
 
-    if not used_gui:
-        print(f'{APP_NAME} v{APP_VERSION} ({APP_STAGE}) running at {url}')
-        print(f'Workspace: {workspace_dir}')
-        print('Press Ctrl+C to stop.')
-        try:
-            while server_thread.is_alive():
-                server_thread.join(timeout=0.5)
-        except KeyboardInterrupt:
-            stop_server()
+        def stop_server():
+            server.should_exit = True
 
-    server_thread.join(timeout=3.0)
+        used_gui = False
+        if not args.no_gui:
+            used_gui = _run_tk_control_window(url, workspace_dir, stop_server)
+
+        if not used_gui:
+            print(f'{APP_NAME} v{APP_VERSION} ({APP_STAGE}) running at {url}')
+            print(f'Workspace: {workspace_dir}')
+            print('Press Ctrl+C to stop.')
+            try:
+                while server_thread.is_alive():
+                    server_thread.join(timeout=0.5)
+            except KeyboardInterrupt:
+                stop_server()
+
+        server_thread.join(timeout=3.0)
+    except Exception:
+        err_text = traceback.format_exc()
+        logging.error('Fatal startup error:\n%s', err_text)
+        if log_path:
+            try:
+                log_path.write_text(
+                    (log_path.read_text(encoding='utf-8') if log_path.exists() else '') + '\n' + err_text,
+                    encoding='utf-8',
+                )
+            except Exception:
+                pass
+        raise
 
 
 if __name__ == '__main__':

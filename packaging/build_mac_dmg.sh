@@ -17,10 +17,16 @@ echo "==> Building SPECiT ${VERSION} macOS .app & .dmg (${ARCH})"
 "$PYTHON_BIN" packaging/generate_icons.py
 "$PYTHON_BIN" -m PyInstaller --noconfirm --clean packaging/specit.spec
 
+APP_BUNDLE="$ROOT_DIR/dist/SPECiT.app"
+SIGN_IDENTITY="${MACOS_SIGN_IDENTITY:--}"
+echo "==> Code-signing SPECiT.app (identity: ${SIGN_IDENTITY})"
+codesign --force --deep --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+codesign --verify --deep --strict "$APP_BUNDLE"
+
 STAGE_DIR="$ROOT_DIR/build/dmg-stage"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
-cp -R "$ROOT_DIR/dist/SPECiT.app" "$STAGE_DIR/"
+cp -R "$APP_BUNDLE" "$STAGE_DIR/"
 ln -s /Applications "$STAGE_DIR/Applications"
 
 rm -f "$ROOT_DIR/dist/$DMG_NAME"

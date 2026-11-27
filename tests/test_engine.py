@@ -317,6 +317,9 @@ class EngineTests(unittest.TestCase):
 
         port = launcher.find_available_port(preferred=0)
         self.assertGreater(port, 0)
+        # macOS LaunchServices passes -psn_0_... when double-clicking a .app bundle
+        parsed = launcher.parse_launcher_args(['-psn_0_123456', '--port', '8510'])
+        self.assertEqual(parsed.port, 8510)
 
 
 if __name__ == '__main__':

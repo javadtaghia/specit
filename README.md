@@ -21,6 +21,7 @@
 
 Download pre-built desktop packages from **GitHub Releases**:
 - **macOS**: `SPECiT-<version>-macOS-arm64.dmg` — drag **SPECiT.app** to **Applications** and open.
+  - *Note for unsigned Beta releases on macOS*: Because this beta build is ad-hoc signed (not yet Apple-notarized), macOS Gatekeeper may block the first launch. After trying to open **SPECiT.app**, open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** next to SPECiT. Startup logs are written to `~/Documents/SPECiT/specit.log`.
 - **Windows**: `SPECiT-<version>-Windows-x64.exe` — double-click to launch SPECiT locally in your browser.
 
 When launched as a desktop app, SPECiT stores project workspaces in `~/Documents/SPECiT/workspace` (overridable via `SPECIT_WORKSPACE`) and shows a compact desktop status window to reopen the browser, open the workspace folder, or quit cleanly.
