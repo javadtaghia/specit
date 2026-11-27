@@ -1,4 +1,4 @@
-name: Build, Sign & Release SPECiT (macOS .dmg, Windows .exe, Linux .tar.gz)
+name: Build, Sign & Release SPECiT (Windows .exe & Linux .tar.gz)
 
 on:
   push:
@@ -31,61 +31,6 @@ jobs:
           pip install -r requirements.txt
       - name: Run engine & API tests
         run: python -m unittest discover -s tests -v
-
-  build-macos:
-    name: Build & Sign macOS .dmg
-    needs: test
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install runtime & packaging dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller pillow
-      - name: Import Apple Developer ID certificate (if configured)
-        env:
-          MACOS_CERT_BASE64: ${{ secrets.MACOS_CERT_BASE64 }}
-          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-        run: |
-          if [ -z "${MACOS_CERT_BASE64:-}" ]; then
-            echo "MACOS_CERT_BASE64 secret not set — using ad-hoc signing."
-            exit 0
-          fi
-          KEYCHAIN_PATH="$RUNNER_TEMP/specit-signing.keychain-db"
-          KEYCHAIN_PASS="$(uuidgen)"
-          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-          CERT_PATH="$RUNNER_TEMP/specit-cert.p12"
-          echo "$MACOS_CERT_BASE64" | base64 --decode > "$CERT_PATH"
-          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
-          rm -f "$CERT_PATH"
-      - name: Build, Sign & Notarize SPECiT macOS .app and .dmg
-        env:
-          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          chmod +x packaging/build_mac_dmg.sh
-          PYTHON_BIN=python ./packaging/build_mac_dmg.sh
-      - name: Clean up temporary macOS signing keychain
-        if: always()
-        run: |
-          if [ -n "${KEYCHAIN_PATH:-}" ]; then
-            security delete-keychain "$KEYCHAIN_PATH" || true
-          fi
-      - name: Upload macOS DMG artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: specit-macos-dmg
-          path: dist/SPECiT-*.dmg
 
   build-windows:
     name: Build & Sign Windows .exe
@@ -156,16 +101,11 @@ jobs:
 
   release:
     name: Sign Checksums, Attest & Publish GitHub Release
-    needs: [build-macos, build-windows, build-linux]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     steps:
       - uses: actions/checkout@v4
-      - name: Download macOS DMG
-        uses: actions/download-artifact@v4
-        with:
-          name: specit-macos-dmg
-          path: release-assets
       - name: Download Windows EXE
         uses: actions/download-artifact@v4
         with:
@@ -181,7 +121,7 @@ jobs:
           cd release-assets
           sha256sum SPECiT-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
-      - name: GPG-sign Linux, macOS, Windows artifacts & checksums (if configured)
+      - name: GPG-sign Windows & Linux artifacts and checksums (if configured)
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -218,7 +158,7 @@ jobs:
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Publish Release with macOS, Windows, Linux & Signatures
+      - name: Publish Release with Windows, Linux & Signatures
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
@@ -227,7 +167,6 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: |
-            release-assets/*.dmg
             release-assets/*.exe
             release-assets/*.tar.gz
             release-assets/SHA256SUMS.txt
